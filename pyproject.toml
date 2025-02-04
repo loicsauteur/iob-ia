@@ -13,13 +13,17 @@ source = "vcs"
 only-include = ["src"]
 sources = ["src"]
 
+# Allow to install dependencies directly from github
+[tool.hatch.metadata]
+allow-direct-references = true
+
 # https://peps.python.org/pep-0621/
 [project]
 name = "iob-ia"
 dynamic = ["version"]
 description = "Package for image analysis."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "BSD-3-Clause" }
 authors = [{ name = "Loïc Sauteur", email = "loic.sauteur@unibas.ch" }]
 # https://pypi.org/classifiers/
@@ -35,7 +39,19 @@ classifiers = [
     "Typing :: Typed",
 ]
 # add your package dependencies here
-dependencies = []
+dependencies = [
+    'napari==0.5.5',
+    'napari[all]',
+    'bioio-bioformats==1.0.0',
+    'bioio==1.1.0',
+    'cellpose[gui]==3.1.0',
+    'notebook==7.3.2',
+    # install the label filter plugin from branch that does not confilict scikit-image
+    # 'napari-filter-labels-by-prop@git+https://github.com/loicsauteur/napari-filter-labels-by-prop@LowerScikit',
+    'napari-filter-labels-by-prop',
+    'numpy==1.26.4',
+    'scikit-image==0.22.0',
+]
 
 # https://peps.python.org/pep-0621/#dependencies-optional-dependencies
 # "extras" (e.g. for `pip install .[test]`)
