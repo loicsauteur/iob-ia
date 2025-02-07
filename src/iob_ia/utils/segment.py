@@ -1,11 +1,82 @@
 import numpy as np
 import skimage
-from skimage.morphology import remove_small_objects
+from skimage.segmentation import expand_labels
+from skimage.measure import label
 
-from skimage.measure import label, regionprops, regionprops_table
-import pandas as pd
-from typing import List, Optional
+from skimage.measure import regionprops_table
+from typing import List, Optional, Union
 from tqdm import tqdm
+from time import time
+
+
+def create_cell_cyto_masks(
+    lbl: np.ndarray,
+    expansion: float,
+    voxel_size: Union[float, tuple] = 1
+) -> (np.ndarray, np.ndarray):
+    """
+    Create cell and cyto masks from the labels.
+
+    Allows expansion for anisotropic data.
+    :param lbl: nuclear label mask
+    :param expansion: desired expansion in microns
+    :param voxel_size: ZYX voxel size
+    :return: cell mask, cytoplasm mask
+    """
+    if len(voxel_size) != 3:
+        raise RuntimeError(
+            f'Voxel size must be 3D. You have {len(voxel_size)} dimensions. '
+        )
+    if voxel_size[1] != voxel_size[2]:
+        raise ValueError(
+            f'Voxel size in Y and X must be equal. Got: {voxel_size[-2:]}'
+        )
+    # skimage has anisotropic expand labels from v0.23.0 on
+    # (also requires scipy>=1.8, but I don't think this will be a problem)
+    start = time()
+    cells = cell_expansion(lbl, spacing=voxel_size, expansion=expansion)
+    print('Creating cells took:', time() - start)
+    start = time()
+    # create cyto mask
+    cyto = np.subtract(cells, lbl)
+    print('Creating cytoplasm took:', time() - start)
+    return cells, cyto
+
+
+def cell_expansion(
+    label_image: np.ndarray, spacing: Union[float, tuple] = 1, expansion: float = 1
+) -> np.ndarray:
+    """
+    Basically skimage's expand_labels.
+
+    But since anisotropic expansion is only available since skimage v0.23.0,
+    re-implement it here: copied from:
+    https://github.com/scikit-image/scikit-image/blob/v0.25.1/skimage/segmentation/_expand_labels.py
+    :param label_image:
+    :param spacing: usually a tuple of the voxel-size,
+                    used to calculate the distance map with anisotropy
+    :param expansion: distance in microns (if the spacing tuple is in microns)
+    :return:
+    """
+    if check_skimage_version(0, 22, 9):
+        return expand_labels(label_image, distance=expansion, spacing=spacing)
+    # Re-implementation
+    from scipy.ndimage import distance_transform_edt
+    distances, nearest_label_coords = distance_transform_edt(
+        label_image == 0, sampling=spacing, return_indices=True
+    )
+    labels_out = np.zeros_like(label_image)
+    dilate_mask = distances <= expansion
+    # build the coordinates to find the nearest labels,
+    # in contrast to 'cellprofiler' this implementation supports label arrays
+    # of any dimension
+    masked_nearest_label_coords = [
+        dimension_indices[dilate_mask] for dimension_indices in nearest_label_coords
+    ]
+    nearest_labels = label_image[tuple(masked_nearest_label_coords)]
+    labels_out[dilate_mask] = nearest_labels
+    return labels_out
+
 
 def segment_3d_cellpose(
     img: np.ndarray,
@@ -34,36 +105,52 @@ def segment_3d_cellpose(
     logger_setup()
     print('>>> GPU activated:', use_gpu)
 
-    # Set up the model
-    # FIXME if not cyto3, i need to check if the path can be used...?!?!
-    model = models.Cellpose(gpu=use_gpu, model_type=model_path)
-
     # grayscale image
     channels = [0, 0]
 
-    # Run 3D cellpose
-    masks, flows, _, _ = model.eval(
-        img, channels=channels,
-        diameter=12, do_3D=True,
-        anisotropy=anisotropy,
-        z_axis=0
-    )
+    # Set up the model
+    # FIXME if not cyto3, i need to check if the path can be used...?!?!
+    if model_path == 'cyto3':
+        model = models.Cellpose(gpu=use_gpu, model_type=model_path)
+        # Run 3D cellpose
+        masks, flows, _, _ = model.eval(
+            img, channels=channels,
+            diameter=12, do_3D=True,
+            anisotropy=anisotropy,
+            z_axis=0
+        )
+    else:
+        model = models.CellposeModel(gpu=True, pretrained_model=model_path)
+        # TODO: Not sure how important the anisotropy is here
+        #  Also need to try with smoothing the flows:
+        #  -> dP_smooth (sigma for gaussian filter
+        # Run 3D cellpose
+        masks, flows, _ = model.eval(
+            img, channels=channels,
+            diameter=12, do_3D=True,
+            anisotropy=anisotropy,
+            z_axis=0
+        )
+
     return masks
 
 
 def filter_shape(
     labels: np.ndarray, prop: str,
     min_val=float('-inf'), max_val=float('inf'),
+    return_all_labels: bool = False,
     labels_to_remove: Optional[List] = None
-) -> List:
+):
     """
     Filter a label image by a shape property.
+    Generally, min/max value are supposed to be in pixels.
 
     Only 'area, 'euler_number' and 'extent' are supported for 3D images.
     :param labels: label image
     :param prop: str of property to filter on
     :param min_val: minimum value (exclusive). Default -inf
     :param max_val: maximum value (exclusive). Default inf
+    :param return_all_labels: whether to return all labels. Default False .
     :param labels_to_remove: Optional, list of labels to remove
     :return: list of labels to remove.
              Will append new labels to remove if labels_to_remove is not None
@@ -84,14 +171,17 @@ def filter_shape(
         min_val=min_val, max_val=max_val,
         labels_to_remove=labels_to_remove
     )
+    if return_all_labels:
+        return labels_to_remove, table['label']
     return labels_to_remove
 
 
 def filter_intensity(
     labels: np.ndarray, img: np.ndarray,
     prop: str, min_val=float('-inf'), max_val=float('inf'),
+    return_all_labels: bool = False,
     labels_to_remove: Optional[List] = None
-) -> List:
+):
     """
     Filter a label image on intensity features.
 
@@ -102,6 +192,7 @@ def filter_intensity(
     :param prop: property to filter on
     :param min_val: minimum value (exclusive). Default = -inf
     :param max_val: maximum value (exclusive). Default = inf
+    :param return_all_labels: whether to return all labels. Default False.
     :param labels_to_remove: Optional, list of labels to remove
     :return: List of labels to remove
     """
@@ -127,6 +218,8 @@ def filter_intensity(
         min_val=min_val, max_val=max_val,
         labels_to_remove=labels_to_remove
     )
+    if return_all_labels:
+        return labels_to_remove, table['label']
     return labels_to_remove
 
 
@@ -136,11 +229,12 @@ def check_skimage_version(
     micro: int = 1
 ) -> bool:
     """
-    Check if the installed skimage version is bigger than major.minor.micro
+    Check if the installed skimage version is bigger than major.minor.micro.
+
     Default minimal skimage version = 0.23.1
-    :param major:
-    :param minor:
-    :param micro:
+    :param major: minimal skimage major. Default = 0
+    :param minor: minimal skimage minor. Default = 23
+    :param micro: minimal skimage micro. Default = 1
     :return: boolean
     """
     v = skimage.__version__.split('.')
@@ -195,87 +289,49 @@ def get_label_list(
 
 def remove_label_objects(
     img_label: np.ndarray,
-    labels: List
+    labels: List,
+    all_labels: Optional[List] = None,
 ) -> np.ndarray:
-    copy = np.copy(img_label)
-    for lbl in tqdm(labels):
-        # find indices that correspond to the label
-        a = copy == lbl
-        # set the image where indices True to 0
-        copy[a] = 0
-    return copy
-
-
-def filter_labels_size(mask: np.ndarray, min_size: int, max_size: int):
     """
-    @Deprecated
+    Remove labels from an image.
 
-    :param mask:
-    :param min_size:
-    :param max_size:
-    :return:
+    :param img_label: label image
+    :param labels: list of labels to remove
+    :param all_labels: list of all labels in the image
+    :return: label image with labels removed
     """
-    lbl = label(mask)
-    props_ori = regionprops(lbl)
-    table_ori = regionprops_table(lbl, properties=['label', 'area'])
-    lbl = remove_small_objects(lbl, min_size=min_size)
-    table_small = regionprops_table(lbl, properties=['label', 'area'])
-    lbl = remove_big_objects(lbl, max_size=max_size)
-    table_big = regionprops_table(lbl, properties=['label', 'area'])
+    # Convert the lists to numpy arrays
+    if all_labels is None:
+        all_labels = regionprops_table(img_label, properties=['label'])['label']
+    # List of all labels
+    input_vals = np.array(all_labels, dtype=int)
 
-    #print(table_ori['label'])
-    #print(table_small['label'])
-    #print(table_big['label'])
-    #print(type(table_big))
+    # output_vals is the same len(input_vals) and maps the values of input_vals
+    # i.e. set labels (labels to remove) in output_vals to 0
+    output_vals = np.copy(input_vals)
+    for i in labels:
+        output_vals = np.where(output_vals == i, 0, output_vals)
 
-    table_small['small'] = ['small'] * len(table_small['label'])
-    table_big['big'] = ['big'] * len(table_big['label'])
-
-    table_ori = pd.DataFrame.from_dict(table_ori)
-    table_small = pd.DataFrame.from_dict(table_small)
-    table_big = pd.DataFrame.from_dict(table_big)
-
-    final = pd.merge(table_ori, table_small, on='label', how='left')
-    final = pd.merge(final, table_big, on='label', how='left')
-    print(final)
-    return final
+    copy = skimage.util.map_array(
+        img_label,
+        input_vals=input_vals,
+        output_vals=output_vals
+    )
+    # Re-label the new label image
+    return label(copy)
 
 
-def filter_label_prop(mask: np.ndarray, prop: str, value: float):
+def calc_pixel_size(size_um: float, voxel_size: tuple) -> float:
     """
-    @Deprecated
+    Calculate a calibrated volume to number of pixels.
 
-    :param mask:
-    :param prop:
-    :param value:
-    :return:
+    E.g. for getting a value for filtering on size.
+
+    :param size_um: desired size in um^3
+    :param voxel_size: ZYX voxel size
+    :return: volume in number of pixels
     """
-    # maybe i can use np.where to set label values to zero after checking regionprops?
-    pass
-
-
-def remove_big_objects(ar: np.ndarray, max_size: int = 64) -> np.ndarray:
-    """
-    @Deprecated
-    :param ar:
-    :param max_size:
-    :return:
-    """
-    # Similar to skimage.morphology.remove_small_objects
-    out = ar.copy()
-    css = out
-    try:
-        component_sizes = np.bincount(css.ravel())
-    except ValueError:
-        raise ValueError(
-            "Negative value labels are not supported. Try "
-            "relabeling the input with `scipy.ndimage.label` or "
-            "`skimage.morphology.label`."
-        )
-    # print(component_sizes)
-    too_big = component_sizes > max_size
-    too_big_mask = too_big[css]
-    out[too_big_mask] = 0
-
-    return out
-
+    if len(voxel_size) != 3:
+        raise ValueError(f'Expected 3D voxel size,'
+                         f'but got {len(voxel_size)} dimensions.')
+    return size_um / (voxel_size[0] * voxel_size[1] * voxel_size[2])
