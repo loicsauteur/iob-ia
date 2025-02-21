@@ -49,3 +49,8 @@ windows:
 
 Install the package... TODO
 
+<!--
+Install Test dependencies
+    `pip install -e ".[test]"`
+-->
+

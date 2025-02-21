@@ -1,12 +1,14 @@
 import numpy as np
 import skimage
-from skimage.segmentation import expand_labels
+from skimage.segmentation import expand_labels, relabel_sequential
 from skimage.measure import label
 
 from skimage.measure import regionprops_table
 from typing import List, Optional, Union
 from tqdm import tqdm
 from time import time
+
+import iob_ia.utils.extra_props as ep
 
 
 def create_cell_cyto_masks(
@@ -81,7 +83,9 @@ def cell_expansion(
 def segment_3d_cellpose(
     img: np.ndarray,
     model_path: str = 'cyto3',
-    anisotropy: float = None
+    anisotropy: float = None,
+    flow3D_smooth: int = 0,
+    cellprob_threshold: float = 0.0,
 ) -> np.ndarray:
     """
     Use cellpose cyto3 to segment the 3D image.
@@ -90,6 +94,8 @@ def segment_3d_cellpose(
     :param img: single channel image
     :param model_path: path to cellpose model. Default = 'cyto3'
     :param anisotropy: Optional, anisotropy rescaling factor
+    :param flow3D_smooth: gaussian sigma for smoothing 3D flows. Default = 0
+                    Note: This only helps a bit, fusing smaller pieces...
     :return: (np.ndarray for mask, list for flows)
     """
     # check the image first
@@ -109,7 +115,6 @@ def segment_3d_cellpose(
     channels = [0, 0]
 
     # Set up the model
-    # FIXME if not cyto3, i need to check if the path can be used...?!?!
     if model_path == 'cyto3':
         model = models.Cellpose(gpu=use_gpu, model_type=model_path)
         # Run 3D cellpose
@@ -117,18 +122,25 @@ def segment_3d_cellpose(
             img, channels=channels,
             diameter=12, do_3D=True,
             anisotropy=anisotropy,
+            # newer version calls it flow3D_smooth not dP_smooth
+            dP_smooth=flow3D_smooth,
+            cellprob_threshold=cellprob_threshold,
             z_axis=0
         )
     else:
         model = models.CellposeModel(gpu=True, pretrained_model=model_path)
-        # TODO: Not sure how important the anisotropy is here
+        # TODO: Not sure how important the anisotropy is here --> probably because z-stage movement not precise... (cels in z are 40um)
         #  Also need to try with smoothing the flows:
-        #  -> dP_smooth (sigma for gaussian filter
+        #  -> dP_smooth/flow3D_smooth (sigma for gaussian filter) --> Doesnt seem too have a big impact
+        #  cellprob_threshold maybe decrease to -3 (range -6 to + 6, default 0, smaller=more cells)
         # Run 3D cellpose
         masks, flows, _ = model.eval(
             img, channels=channels,
             diameter=12, do_3D=True,
             anisotropy=anisotropy,
+            # newer version calls it flow3D_smooth not dP_smooth
+            cellprob_threshold=cellprob_threshold,
+            dP_smooth=flow3D_smooth,
             z_axis=0
         )
 
@@ -159,13 +171,22 @@ def filter_shape(
         "area",
         "euler_number",
         "extent",
+        'projected_area',
+        'projected_convex_area',
+        'projected_perimeter',
+        'projected_circularity',
     ]
     if prop not in supported_props:
         raise NotImplementedError(
             f'Unsupported property "{prop}". '
             f'Supported properties are: {supported_props}'
         )
-    table = regionprops_table(labels, properties=['label', prop])
+    table = regionprops_table(
+        labels, properties=['label', prop],
+        extra_properties=(
+            ep.projected_area, ep.projected_convex_area,
+            ep.projected_perimeter, ep.projected_circularity)
+    )
     labels_to_remove = get_label_list(
         labels=table['label'], values=table[prop],
         min_val=min_val, max_val=max_val,
@@ -291,6 +312,7 @@ def remove_label_objects(
     img_label: np.ndarray,
     labels: List,
     all_labels: Optional[List] = None,
+    relabel: bool = True,
 ) -> np.ndarray:
     """
     Remove labels from an image.
@@ -298,6 +320,7 @@ def remove_label_objects(
     :param img_label: label image
     :param labels: list of labels to remove
     :param all_labels: list of all labels in the image
+    :param relabel: whether to relabel the image or keep the original label ids
     :return: label image with labels removed
     """
     # Convert the lists to numpy arrays
@@ -318,7 +341,9 @@ def remove_label_objects(
         output_vals=output_vals
     )
     # Re-label the new label image
-    return label(copy)
+    if relabel:
+        copy, _, _ = relabel_sequential(copy)
+    return copy
 
 
 def calc_pixel_size(size_um: float, voxel_size: tuple) -> float:

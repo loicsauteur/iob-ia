@@ -81,6 +81,25 @@ def read_vsi(path: str) -> (np.ndarray, tuple):
     return img, voxel_size
 
 
+def read_nd2(path: str) -> (np.ndarray, tuple):
+    import bioio_nd2
+    if not os.path.exists(path):
+        raise FileNotFoundError(f'File not found: {path}')
+    if not path.endswith('.nd2'):
+        raise ValueError(f'File not a .nd2: {path}')
+    b_img = BioImage(path, reader=bioio_nd2.Reader)
+
+    # get the voxel size
+    voxel_size = (
+        b_img.physical_pixel_sizes.Z,
+        b_img.physical_pixel_sizes.Y,
+        b_img.physical_pixel_sizes.X
+    )
+    # remove axes of size 1
+    img = np.squeeze(b_img.data)
+    return img, voxel_size
+
+
 def read_tif(path: str) -> (np.ndarray, tuple):
     """
     Read image from .tif file.
@@ -115,6 +134,7 @@ def read_tif(path: str) -> (np.ndarray, tuple):
     info = ij_description['Info'].split('\n')
     z = ''
     for line in info:
+        print(line)
         if line.startswith('Z incrementValue'):
             z = line.split('=')[1]
             z = z.strip()
