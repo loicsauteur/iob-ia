@@ -81,7 +81,20 @@ def read_vsi(path: str) -> (np.ndarray, tuple):
     return img, voxel_size
 
 
-def read_nd2(path: str) -> (np.ndarray, tuple):
+def read_nd2(
+    path: str, channel_names: bool = False,
+    dask_array: bool = False
+) -> (np.ndarray, tuple):
+    """
+    Read image from .nd2 file.
+
+    Returns the image as CZYX
+    :param path: str path to file
+    :param channel_names: whether to return channel names
+    :param dask_array: returns a 5D TCZYX xarray backed by dask, use .compute.
+    :return: (data-array, tuple(voxel_size)) or
+              optional (data-array, tuple(voxel_size), list(channel_names))
+    """
     import bioio_nd2
     if not os.path.exists(path):
         raise FileNotFoundError(f'File not found: {path}')
@@ -97,6 +110,12 @@ def read_nd2(path: str) -> (np.ndarray, tuple):
     )
     # remove axes of size 1
     img = np.squeeze(b_img.data)
+    if channel_names and not dask_array:
+        return img, voxel_size, b_img.channel_names
+    elif channel_names and dask_array:
+        return b_img.xarray_dask_data, voxel_size, b_img.channel_names
+    elif dask_array:
+        return b_img.xarray_dask_data, voxel_size
     return img, voxel_size
 
 
