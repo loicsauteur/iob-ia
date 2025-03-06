@@ -1,6 +1,7 @@
 import napari
 import numpy as np
-from typing import Optional, List
+from typing import Optional, List, Union, Dict
+from iob_ia.utils.segment import measure_props
 
 
 def get_viewer():
@@ -30,23 +31,30 @@ def add_image(
     )
 
 
-def add_labels(img: np.ndarray, name: str, scale: Optional[tuple] = None) -> None:
+def add_labels(
+    img: np.ndarray,
+    name: str,
+    scale: Optional[tuple] = None,
+    features: Optional[Dict] = None
+) -> None:
     """
     Add labels to the napari viewer.
 
     :param img: label image
     :param name: str  for the layer name
     :param scale: tuple of voxel size, will scale for 3D view
+    :param features: dict for label properties
     :return:
     """
     viewer = get_viewer()
-    viewer.add_labels(img, name=name, scale=scale)
+    viewer.add_labels(img, name=name, scale=scale, features=features)
 
 
 def add_pair(
     img: np.ndarray, labels: np.ndarray,
     name: str, colormap: str = 'gray',
-    scale: Optional[tuple] = None
+    scale: Optional[tuple] = None,
+    features: Optional[Dict] = None
 ) -> None:
     """
     Add an image and the corresponding labels to the napari viewer.
@@ -56,6 +64,7 @@ def add_pair(
     :param name: str for the layer name
     :param colormap: str LUT
     :param scale: tuple of voxel size, will scale for 3D view
+    :param features: dict for label properties
     :return:
     """
     if img.shape != labels.shape:
@@ -65,7 +74,8 @@ def add_pair(
     viewer.add_image(
         img, name=name, blending='additive', colormap=colormap, scale=scale
     )
-    viewer.add_labels(labels, name=name + '_segmentation', scale=scale)
+    viewer.add_labels(labels, name=name + '_segmentation', scale=scale,
+                      features=features)
 
 
 def add_multichannel_image(
@@ -113,3 +123,38 @@ def add_multichannel_image(
             scale=scale
         )
 
+
+def create_napari_features(
+    img_label: np.ndarray,
+    img_intensity: Optional[Union[np.ndarray, List[np.ndarray]]] = None,
+    voxel_size: Union[float, tuple] = 1,
+    props_table: Optional[Dict] = None
+) -> dict:
+    """
+    Create a dictionary of label features, that is compatible with a napari label layer.
+
+    :param img_label: label image
+    :param img_intensity: intensity image (CZYX or list of ZYX)
+    :param voxel_size: ZYX voxel size in microns for calibrated measurements
+    :param props_table: regionprops_table that was already measured
+    :return: features dictionary for napari label layer
+    """
+    # If properties not already supplied...
+    if props_table is None:
+        props_table = measure_props(
+            img_label=img_label,
+            img_intensity=img_intensity,
+            voxel_size=voxel_size
+        )
+    label_max = props_table['label'].max()
+    features = {}
+    for k, v in props_table.items():
+        # Don't include the label
+        if k == 'label':
+            continue
+        # Per measurement, create a 'default' dictionary entry for all labels + 0
+        features[k] = ['none'] * (label_max + 1)
+        # Assign the proper values to the feature value array
+        for i, _label in enumerate(props_table['label']):
+            features[k][_label] = v[i]
+    return features

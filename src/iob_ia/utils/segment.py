@@ -4,7 +4,7 @@ from skimage.segmentation import expand_labels, relabel_sequential
 from skimage.measure import label
 
 from skimage.measure import regionprops_table
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict
 from tqdm import tqdm
 from time import time
 
@@ -36,7 +36,7 @@ def create_cell_cyto_masks(
     # skimage has anisotropic expand labels from v0.23.0 on
     # (also requires scipy>=1.8, but I don't think this will be a problem)
     start = time()
-    cells = cell_expansion(lbl, spacing=voxel_size, expansion=expansion)
+    cells = label_expansion(lbl, spacing=voxel_size, expansion=expansion)
     print('Creating cells took:', time() - start)
     start = time()
     # create cyto mask
@@ -45,7 +45,7 @@ def create_cell_cyto_masks(
     return cells, cyto
 
 
-def cell_expansion(
+def label_expansion(
     label_image: np.ndarray, spacing: Union[float, tuple] = 1, expansion: float = 1
 ) -> np.ndarray:
     """
@@ -78,6 +78,85 @@ def cell_expansion(
     nearest_labels = label_image[tuple(masked_nearest_label_coords)]
     labels_out[dilate_mask] = nearest_labels
     return labels_out
+
+
+def label_shrinking(
+    label_image: np.ndarray, spacing: Union[float, tuple] = 1, shrink: float = 1
+) -> np.ndarray:
+    # FIXME: create label shrinking on inverse distance map...
+    pass
+
+
+def measure_props(
+    img_label: np.ndarray,
+    img_intensity: Optional[Union[np.ndarray, List[np.ndarray]]] = None,
+    voxel_size: Union[float, tuple] = (1, 1, 1),
+) -> dict:
+    """
+    Measure the properties of the labels  with optional (multi-channel) intensity image.
+
+    :param img_label: 3D label image
+    :param img_intensity:  a list of 3D channels or a single 3D CZYX image
+    :param voxel_size: ZYX voxel size in microns for calibrated shape measurements
+    :return: regionprops_table dictionary
+    """
+    # Make sure that the image is a 3D label image
+    if len(img_label.shape) != 3:
+        raise ValueError(f'Image must be 3D. You have {img_label.ndim} dimensions. '
+                         f'With an image shape of: {img_label.shape}.')
+    # Define the properties to measure
+    if img_intensity is None:
+        props = [
+            'label',
+            "area",
+            "euler_number",
+            "extent",
+        ]
+    else:
+        props = [
+            'label',
+            "area",
+            "euler_number",
+            "extent",
+            "intensity_max",
+            "intensity_mean",
+            "intensity_min",
+        ]
+        # Check the intensity image
+        if isinstance(img_intensity, list):
+            # Check that each image has the same shape as the label image
+            for img in img_intensity:
+                if img.shape != img_label.shape:
+                    raise ValueError(
+                        f'The intensity images must have the same shape. '
+                        f'Got {img.shape}, but should be {img_label.shape}.'
+                    )
+            # Convert list to multichannel ZYXC image
+            img_intensity = np.stack(img_intensity, axis=-1)
+        elif isinstance(img_intensity, np.ndarray):
+            # Make sure that the image has the same shape as the label image
+            if img_intensity.shape != img_label.shape:
+                # Check if it is a CZYX image
+                if len(img_intensity.shape) == 4 and img_intensity.shape[1:] == img_label.shape:
+                    # Swap axes to ZYXC for region props
+                    img_intensity = np.moveaxis(img_intensity, 0, -1)
+                else:
+                    raise ValueError(f'Intensity image must be a CZYX image. '
+                                     f'You have {img_intensity.shape}.')
+        else:
+            raise ValueError(f'Intensity image must be a list or single numpy array. '
+                             f'You have {type(img_intensity)}.')
+    # Measure properties
+    table = regionprops_table(
+        label_image=img_label,
+        intensity_image=img_intensity,
+        properties=props,
+        extra_properties=(
+            ep.projected_area, ep.projected_convex_area,
+            ep.projected_perimeter, ep.projected_circularity),
+        spacing=voxel_size
+    )
+    return table
 
 
 def segment_3d_cellpose(
@@ -151,7 +230,8 @@ def filter_shape(
     labels: np.ndarray, prop: str,
     min_val=float('-inf'), max_val=float('inf'),
     return_all_labels: bool = False,
-    labels_to_remove: Optional[List] = None
+    labels_to_remove: Optional[List] = None,
+    props_table: Optional[Dict] = None
 ):
     """
     Filter a label image by a shape property.
@@ -164,6 +244,7 @@ def filter_shape(
     :param max_val: maximum value (exclusive). Default inf
     :param return_all_labels: whether to return all labels. Default False .
     :param labels_to_remove: Optional, list of labels to remove
+    :param props_table:
     :return: list of labels to remove.
              Will append new labels to remove if labels_to_remove is not None
     """
@@ -181,6 +262,7 @@ def filter_shape(
             f'Unsupported property "{prop}". '
             f'Supported properties are: {supported_props}'
         )
+    # FIXME: create table only if there is no props_table and it does not contain the chosen prop
     table = regionprops_table(
         labels, properties=['label', prop],
         extra_properties=(
@@ -201,7 +283,8 @@ def filter_intensity(
     labels: np.ndarray, img: np.ndarray,
     prop: str, min_val=float('-inf'), max_val=float('inf'),
     return_all_labels: bool = False,
-    labels_to_remove: Optional[List] = None
+    labels_to_remove: Optional[List] = None,
+    props_table: Optional[Dict] = None
 ):
     """
     Filter a label image on intensity features.
@@ -215,6 +298,7 @@ def filter_intensity(
     :param max_val: maximum value (exclusive). Default = inf
     :param return_all_labels: whether to return all labels. Default False.
     :param labels_to_remove: Optional, list of labels to remove
+    :param props_table:
     :return: List of labels to remove
     """
     supported_props = [
@@ -229,6 +313,7 @@ def filter_intensity(
             f'Unsupported property "{prop}". '
             f'Supported properties are: {supported_props}'
         )
+    # FIXME: create table only if there is no props_table and it does not contain the chosen prop
     table = regionprops_table(
         label_image=labels,
         intensity_image=img,
