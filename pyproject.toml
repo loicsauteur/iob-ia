@@ -47,11 +47,12 @@ dependencies = [
     'bioio-nd2',
     'cellpose[gui]==3.1.0',
     'notebook==7.3.2',
-    # install the label filter plugin from branch that does not confilict scikit-image
-    'napari-filter-labels-by-prop@git+https://github.com/loicsauteur/napari-filter-labels-by-prop@ProjectedProps',
-    # 'napari-filter-labels-by-prop',
+    # install the label filter plugin from specific branch
+    # 'napari-filter-labels-by-prop@git+https://github.com/loicsauteur/napari-filter-labels-by-prop@ProjectedProps',
+    'napari-filter-labels-by-prop',
     'numpy==1.26.4',
     'scikit-image==0.22.0',
+    'scipy==1.15.1',
 ]
 
 # https://peps.python.org/pep-0621/#dependencies-optional-dependencies

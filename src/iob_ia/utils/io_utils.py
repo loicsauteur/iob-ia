@@ -1,11 +1,10 @@
 import os
 
 import tifffile
-from bioio import BioImage
-import bioio_bioformats
 import numpy as np
-from tifffile import TiffFile, imwrite
+from tifffile import imread, imwrite
 from zipfile import ZIP_DEFLATED
+from iob_ia.custom_image import CustomImage
 
 
 def save_image_channel(img: np.ndarray, path: str):
@@ -55,124 +54,27 @@ def gen_out_path(path: str, name: str = 'output') -> str:
     return os.path.join(folder, file_name)
 
 
-def read_vsi(path: str) -> (np.ndarray, tuple):
-    """
-    Read image from .vsi file.
-
-    Returns the image as CZYX
-    :param path: str path to file
-    :return: data-array, voxel_size
-    """
+def read_image(path: str) -> CustomImage:
     if not os.path.exists(path):
         raise FileNotFoundError(f'File not found: {path}')
-    if not path.endswith('.vsi'):
-        raise ValueError(f'File not a .vsi: {path}')
 
-    b_img = BioImage(path, reader=bioio_bioformats.Reader)
-    # remove axes of size 1
-    img = np.squeeze(b_img.data)
-    # get the voxel size
-    voxel_size = (
-        b_img.physical_pixel_sizes.Z,
-        b_img.physical_pixel_sizes.Y,
-        b_img.physical_pixel_sizes.X
-    )
-
-    return img, voxel_size
-
-
-def read_nd2(
-    path: str, channel_names: bool = False,
-    dask_array: bool = False
-) -> (np.ndarray, tuple):
-    """
-    Read image from .nd2 file.
-
-    Returns the image as CZYX
-    :param path: str path to file
-    :param channel_names: whether to return channel names
-    :param dask_array: returns a 5D TCZYX xarray backed by dask, use .compute.
-    :return: (data-array, tuple(voxel_size)) or
-              optional (data-array, tuple(voxel_size), list(channel_names))
-    """
-    import bioio_nd2
-    if not os.path.exists(path):
-        raise FileNotFoundError(f'File not found: {path}')
-    if not path.endswith('.nd2'):
-        raise ValueError(f'File not a .nd2: {path}')
-    b_img = BioImage(path, reader=bioio_nd2.Reader)
-
-    # get the voxel size
-    voxel_size = (
-        b_img.physical_pixel_sizes.Z,
-        b_img.physical_pixel_sizes.Y,
-        b_img.physical_pixel_sizes.X
-    )
-    # remove axes of size 1
-    img = np.squeeze(b_img.data)
-    if channel_names and not dask_array:
-        return img, voxel_size, b_img.channel_names
-    elif channel_names and dask_array:
-        return b_img.xarray_dask_data, voxel_size, b_img.channel_names
-    elif dask_array:
-        return b_img.xarray_dask_data, voxel_size
-    return img, voxel_size
-
-
-def read_tif(path: str) -> (np.ndarray, tuple):
-    """
-    Read image from .tif file.
-
-    Only imageJ tif files supported.
-
-    Returns the image as CZYX
-    :param path:
-    :return:
-    """
-    if not os.path.exists(path):
-        raise FileNotFoundError(f'File not found: {path}')
-    if not path.endswith('.tif'):
-        raise ValueError(f'File not a .tif: {path}')
-    t_file = TiffFile(path)
-    data = t_file.asarray()
-    if len(data.shape) < 3:
-        raise RuntimeError(f'3D image is expected, but it is a 2D image: {path}')
-    elif len(data.shape) > 4:
-        raise RuntimeError(f'Too many dimensions: image has '
-                           f'{len(data.shape)} dimensions: {path}')
-    elif len(data.shape) == 4:
-        # Multichannel image has shape: ZCYX need to convert to CZYX
-        data = np.swapaxes(data, 0, 1)
-
-    # Find voxel-size
-    # To find the Z step it is a bit more difficult, need to use IJ metadata
-    if not t_file.is_imagej:
-        raise Warning(f'Only imagej tif files supported.')
-    # Find the Z incrementValue for the z-step size
-    ij_description = t_file.pages[0].tags['IJMetadata'].value
-    info = ij_description['Info'].split('\n')
-    z = ''
-    for line in info:
-        print(line)
-        if line.startswith('Z incrementValue'):
-            z = line.split('=')[1]
-            z = z.strip()
-            break
-    if z == '':
-        raise ValueError(f'Could not find Z step value in IJ metadata.')
-    # Find the YX voxel size
-    tags = t_file.pages[0].tags
-    x = tags['XResolution'].value
-    y = tags['YResolution'].value
-    x = x[1] / x[0]
-    y = y[1] / y[0]
-
-    return data, (float(z), y, x)
+    supported_types = ['tif', 'tiff', 'nd2', 'vsi']
+    file_ext = path.split('.')[-1]
+    if file_ext not in supported_types:
+        raise NotImplementedError(
+            f'File not supported: {path}. Supported types: {supported_types}'
+        )
+    if file_ext == 'nd2':
+        import bioio_nd2
+        return CustomImage(path, reader=bioio_nd2.Reader)
+    if file_ext == 'vsi':
+        import bioio_bioformats
+        return CustomImage(path, reader=bioio_bioformats.Reader)
+    if file_ext == 'tif' or file_ext == 'tiff':
+        return CustomImage(path)
 
 
 def read_labels(path: str) -> np.ndarray:
-    if not os.path.exists(path):
-        raise FileNotFoundError(f'File not found: {path}')
-    if not path.endswith('.tif'):
+    if not path.endswith('.tif') and not path.endswith('.tiff'):
         raise ValueError(f'File not a .tif: {path}')
     return tifffile.imread(path)

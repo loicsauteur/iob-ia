@@ -3,6 +3,7 @@ import pandas as pd
 from skimage.measure import regionprops_table
 from typing import Optional, List, Dict
 import iob_ia.utils.extra_props as ep
+import iob_ia.utils.segment as seg
 
 
 def create_base_table(
@@ -11,7 +12,7 @@ def create_base_table(
     cyto: np.ndarray = None,
     cells: np.ndarray = None,
     channel_names: Optional[List] = None,
-    scale: Optional[tuple] = None,
+    scale: Optional[tuple] = (1, 1, 1),
 ) -> pd.DataFrame:
     """
     Create a pandas Dataframe of the skimage regionprops_table.
@@ -68,15 +69,15 @@ def create_base_table(
     )
     table = pd.DataFrame.from_dict(table)
     # Convert projected properties to real units
-    if scale is not None:
-        table = calibrate_projection_props(table, scale=scale)
+    table = ep.calibrate_extra_properties(table, voxel_size=scale)
     # Re-order columns
     new_order = reorder_columns(table.columns)
     table = table.reindex(columns=new_order)
-    # Rename the table headers
+    # Rename the table headers (i.e. add 'Nucleus:')
     table = adjust_table_headers(
-        table,
-        'Nucleus', channel_names
+        table=table,
+        mask_name='Nucleus',
+        channel_names=channel_names
     )
 
     # Get the region props for cytoplasm and cell masks  ------------------------------
@@ -92,8 +93,9 @@ def create_base_table(
             spacing=scale,
         )
         cyto_table = adjust_table_headers(
-            pd.DataFrame.from_dict(cyto_table),
-            'Cytoplasm', channel_names
+            table=pd.DataFrame.from_dict(cyto_table),
+            mask_name='Cytoplasm',
+            channel_names=channel_names
         )
         table = pd.merge(table, cyto_table, on='label')
 
@@ -105,8 +107,9 @@ def create_base_table(
             spacing=scale,
         )
         cell_table = adjust_table_headers(
-            pd.DataFrame.from_dict(cell_table),
-            'Cell', channel_names
+            table=pd.DataFrame.from_dict(cell_table),
+            mask_name='Cell',
+            channel_names=channel_names
         )
         table = pd.merge(table, cell_table, on='label')
 
@@ -135,6 +138,10 @@ def classify(
     table = table_in.copy()
     # Check that the property for classification exists
     if prop not in table.columns:
+        # List available measurements
+        print('Available measurements:')
+        for measurement in table.columns:
+            print('-', measurement)
         raise ValueError(f'Property "{prop}" not found in table')
     # Rename the classification if it is None
     if classification is None:
@@ -168,37 +175,6 @@ def count_classifications(table: pd.DataFrame) -> pd.Series:
     :return: pd.DataFrame
     """
     return table.value_counts("Classification")
-
-
-def calibrate_projection_props(table: pd.DataFrame, scale: tuple) -> pd.DataFrame:
-    """
-    Calibrate the extra properties, which are measured in 2D rather than 3D.
-
-    :param table: pandas.DataFrame to be modified
-    :param scale: voxel size tuple
-    :return: modified pandas.Dataframe
-    """
-    if len(scale) not in [2, 3]:
-        raise ValueError(f'The scale must be a tuple corresponding '
-                         f'to the pixel/voxel size. Got {scale}')
-    if scale[-1] != scale[-2]:
-        raise NotImplementedError(f'Only same XY scale is supported.')
-    mul_dic = {
-        'projected_area': scale[-1] ** 2,
-        'projected_convex_area': scale[-1] ** 2,
-        'projected_perimeter': scale[-1],
-    }
-    # Make sure that the extra property keys exist in the table
-    for i in mul_dic.keys():
-        if i not in table.columns:
-            raise KeyError(f'{i} is not in the table.')
-    # Add the other table headers to the mul_dict
-    for h in table.columns:
-        if h not in mul_dic.keys():
-            mul_dic[h] = 1
-    # Multiply the properties
-    table = table.mul(mul_dic)
-    return table
 
 
 def adjust_table_headers(
@@ -257,3 +233,59 @@ def reorder_columns(columns: List) -> List:
             f'Output columns: {new_order}'
         )
     return new_order
+
+
+def show_by_class(
+    table: pd.DataFrame,
+    class_names: str,
+    img_nuclei: np.ndarray,
+    color: Optional[str] = None,
+    voxel_size: Optional[tuple] = (1, 1, 1)
+) -> np.ndarray:
+    """
+    Create a new label mask of nuclei only of a specific class
+
+    :param table: pd.DataFrame with all measurements
+    :param class_names: Classification column class name to filter on,
+                       multiple classes should be separated by ';'
+    :param img_nuclei: nuclei label image
+    :param color: Default None. If not None, will show the created mask in napari with
+                  all objects colored in the chosen color
+    :param voxel_size: voxel size (only for visualization)
+    :return: nuclei_label image of nuclei of specified class
+    """
+    if "Classification" not in table.columns:
+        raise ValueError(f'No classification column found in table')
+
+    all_labels = table['label']
+    label_dict = {}
+    class_names = class_names.split(';')
+
+    # For each classification
+    for class_name in class_names:
+        # For each row in the table
+        for i in range(len(table['Classification'])):
+            # If the class name is in the classification
+            if class_name in table['Classification'][i]:
+                # If the label_ID is present, don't modify it
+                # Only add new entries
+                if all_labels[i] not in label_dict:
+                    # Assign the label_dict (key and value) = label_ID
+                    label_dict[all_labels[i]] = all_labels[i]
+            else:
+                # Not positive: key = label_ID, value = 0, overwrites if it was 1 before
+                label_dict[all_labels[i]] = 0
+
+    # Create label image of selected labels
+    class_labels = seg.remove_label_objects(
+        img_label=img_nuclei, label_map=label_dict, relabel=False
+    )
+
+    if color is not None:
+        import iob_ia.utils.visualise as vis
+        colormap = vis.single_colormap(color=color, n_labels=max(label_dict.keys()))
+        vis.add_labels(
+            class_labels, name=';'.join(class_names),
+            scale=voxel_size, colormap=colormap
+        )
+    return class_labels

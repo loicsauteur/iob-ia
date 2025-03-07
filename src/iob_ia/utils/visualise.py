@@ -2,6 +2,23 @@ import napari
 import numpy as np
 from typing import Optional, List, Union, Dict
 from iob_ia.utils.segment import measure_props
+from napari.utils.colormaps import DirectLabelColormap
+
+
+__colors__ = {
+    'gray': [1., 1., 1., 1.],
+    'red': [1., 0., 0., 1.],
+    'green': [0., 1., 0., 1.],
+    'blue': [0., 0., 1., 1.],
+    'magenta': [1., 0., 1., 1.],
+    'cyan': [0., 1., 1., 1.],
+    'other': [
+        np.random.random(1)[0],
+        np.random.random(1)[0],
+        np.random.random(1)[0],
+        1.
+    ]
+}
 
 
 def get_viewer():
@@ -35,7 +52,8 @@ def add_labels(
     img: np.ndarray,
     name: str,
     scale: Optional[tuple] = None,
-    features: Optional[Dict] = None
+    features: Optional[Dict] = None,
+    colormap: Optional = None
 ) -> None:
     """
     Add labels to the napari viewer.
@@ -44,10 +62,11 @@ def add_labels(
     :param name: str  for the layer name
     :param scale: tuple of voxel size, will scale for 3D view
     :param features: dict for label properties
+    :param colormap: napari DirectColorMap. Default is None
     :return:
     """
     viewer = get_viewer()
-    viewer.add_labels(img, name=name, scale=scale, features=features)
+    viewer.add_labels(img, name=name, scale=scale, features=features, colormap=colormap)
 
 
 def add_pair(
@@ -125,9 +144,9 @@ def add_multichannel_image(
 
 
 def create_napari_features(
-    img_label: np.ndarray,
+    img_label: Optional[np.ndarray] = None,
     img_intensity: Optional[Union[np.ndarray, List[np.ndarray]]] = None,
-    voxel_size: Union[float, tuple] = 1,
+    voxel_size: Union[float, tuple] = (1, 1, 1),
     props_table: Optional[Dict] = None
 ) -> dict:
     """
@@ -139,6 +158,10 @@ def create_napari_features(
     :param props_table: regionprops_table that was already measured
     :return: features dictionary for napari label layer
     """
+    if img_label is None and props_table is None:
+        raise ValueError(
+            f'You must supply either the label image or the regionprops_table. '
+        )
     # If properties not already supplied...
     if props_table is None:
         props_table = measure_props(
@@ -158,3 +181,30 @@ def create_napari_features(
         for i, _label in enumerate(props_table['label']):
             features[k][_label] = v[i]
     return features
+
+
+def single_colormap(color: str, n_labels: int = 65535) -> DirectLabelColormap:
+    """
+    Create a custom color map: for all labels a single color.
+
+    If the color is 'unknown', a random color is generated.
+
+    :param color:
+    :param n_labels: max number of labels in image
+    :return: DirectLabelColormap
+    """
+    # Check the color
+    if color not in __colors__:
+        print(f'Color {color} not found, using random color ', end='')
+        color = __colors__['other']
+        print(color)
+    else:
+        color = __colors__[color]
+    n_labels = n_labels + 1
+    # Create a dictionary mapping labels to RGBA colors
+    color_dict = {}
+    for i in range(1, n_labels):
+        color_dict[i] = color
+    color_dict[None] = "transparent"
+    color_dict[0] = "transparent"
+    return DirectLabelColormap(color_dict=color_dict)

@@ -1,5 +1,19 @@
 import numpy as np
-from skimage.measure import label, regionprops, regionprops_table
+from skimage.measure import regionprops
+
+
+# List of all extra properties
+__all_extra_props__ = [
+    'projected_area',
+    'projected_circularity',
+    'projected_perimeter',
+    'projected_convex_area'
+]
+__calibrated_extr_props__ = [
+    'projected_area',
+    'projected_perimeter',
+    'projected_convex_area',
+]
 
 
 def projected_circularity(region_mask: np.ndarray) -> float:
@@ -59,6 +73,39 @@ def projected_area(region_mask: np.ndarray) -> int:
     props = regionprops(img_proj)
     return props[0].area
 
+
+def calibrate_extra_properties(table: dict, voxel_size: tuple) -> dict:
+    """
+    Calibrate extra properties that should be calibrated.
+
+    :param table: dict (regionprops_table)
+    :param voxel_size: ZYX voxel size
+    :return: modified regionprops_table
+    """
+    # Extra props should only be for 3D images
+    if len(voxel_size) != 3:
+        raise ValueError(
+            f'Extra properties are only for 3D images. Got voxel size of {voxel_size}.'
+        )
+    # Skip calibration if voxel size is all 1's
+    if voxel_size == (1., 1., 1.):
+        return table
+
+    if voxel_size[1] != voxel_size[2]:
+        raise NotImplementedError(
+            f'Different XY pixel size is not supported. Got {voxel_size[1:]}.'
+        )
+    for prop in __calibrated_extr_props__:
+        # Skip props that are not in the table
+        if prop not in table:
+            continue
+        if 'area' in prop:
+            # area properties
+            table[prop] = table[prop] * voxel_size[1] ** 2
+        else:
+            # i.e. perimeter
+            table[prop] = table[prop] * voxel_size[1]
+    return table
 
 def make_sphere() -> np.ndarray:
     """

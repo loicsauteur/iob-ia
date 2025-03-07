@@ -14,6 +14,7 @@ import iob_ia.utils.extra_props as ep
 def create_cell_cyto_masks(
     lbl: np.ndarray,
     expansion: float,
+    shrinking: float = 0,
     voxel_size: Union[float, tuple] = 1
 ) -> (np.ndarray, np.ndarray):
     """
@@ -21,9 +22,10 @@ def create_cell_cyto_masks(
 
     Allows expansion for anisotropic data.
     :param lbl: nuclear label mask
-    :param expansion: desired expansion in microns
+    :param expansion: desired expansion in voxel_size units
+    :param shrinking: desired shrinking in voxel_size units
     :param voxel_size: ZYX voxel size
-    :return: cell mask, cytoplasm mask
+    :return: nuclei mask, cell mask, cytoplasm mask
     """
     if len(voxel_size) != 3:
         raise RuntimeError(
@@ -35,6 +37,10 @@ def create_cell_cyto_masks(
         )
     # skimage has anisotropic expand labels from v0.23.0 on
     # (also requires scipy>=1.8, but I don't think this will be a problem)
+    if shrinking > 0:
+        start = time()
+        lbl = label_shrinking(lbl, spacing=voxel_size, shrink=shrinking)
+        print('Shrinking nuclei took:', time() - start)
     start = time()
     cells = label_expansion(lbl, spacing=voxel_size, expansion=expansion)
     print('Creating cells took:', time() - start)
@@ -42,7 +48,7 @@ def create_cell_cyto_masks(
     # create cyto mask
     cyto = np.subtract(cells, lbl)
     print('Creating cytoplasm took:', time() - start)
-    return cells, cyto
+    return lbl, cells, cyto
 
 
 def label_expansion(
@@ -83,8 +89,24 @@ def label_expansion(
 def label_shrinking(
     label_image: np.ndarray, spacing: Union[float, tuple] = 1, shrink: float = 1
 ) -> np.ndarray:
-    # FIXME: create label shrinking on inverse distance map...
-    pass
+    """
+    To shrink labels in ZYX, by 'shrink' units.
+
+    Uses scipy.ndimage.distance_transform_edt to calculate distances (supports
+    anisotropic spacing).
+
+    :param label_image: e.g. nuclei
+    :param spacing: voxel/pixel size
+    :param shrink: distance to shrink in spacing units
+    :return: shrunk labels of label_image
+    """
+    start = time()
+    from scipy.ndimage import distance_transform_edt
+    distances = distance_transform_edt(
+        label_image != 0, sampling=spacing
+    )
+    erode_mask = distances > shrink
+    return np.where(erode_mask, label_image, 0)  # this is fast...
 
 
 def measure_props(
@@ -156,6 +178,8 @@ def measure_props(
             ep.projected_perimeter, ep.projected_circularity),
         spacing=voxel_size
     )
+    # Calibrate the extra_properties
+    table = ep.calibrate_extra_properties(table, voxel_size=voxel_size)
     return table
 
 
@@ -175,6 +199,7 @@ def segment_3d_cellpose(
     :param anisotropy: Optional, anisotropy rescaling factor
     :param flow3D_smooth: gaussian sigma for smoothing 3D flows. Default = 0
                     Note: This only helps a bit, fusing smaller pieces...
+    :param cellprob_threshold:
     :return: (np.ndarray for mask, list for flows)
     """
     # check the image first
@@ -231,7 +256,8 @@ def filter_shape(
     min_val=float('-inf'), max_val=float('inf'),
     return_all_labels: bool = False,
     labels_to_remove: Optional[List] = None,
-    props_table: Optional[Dict] = None
+    props_table: Optional[Dict] = None,
+    voxel_size: Union[float, tuple] = (1, 1, 1)
 ):
     """
     Filter a label image by a shape property.
@@ -244,38 +270,47 @@ def filter_shape(
     :param max_val: maximum value (exclusive). Default inf
     :param return_all_labels: whether to return all labels. Default False .
     :param labels_to_remove: Optional, list of labels to remove
-    :param props_table:
+    :param props_table: Optional, table already measured of properties
+    :param voxel_size: voxel size in um
     :return: list of labels to remove.
              Will append new labels to remove if labels_to_remove is not None
     """
+    from iob_ia.utils.extra_props import __all_extra_props__
     supported_props = [
         "area",
         "euler_number",
         "extent",
-        'projected_area',
-        'projected_convex_area',
-        'projected_perimeter',
-        'projected_circularity',
     ]
+    for p in __all_extra_props__:
+        supported_props.append(p)
+
     if prop not in supported_props:
         raise NotImplementedError(
             f'Unsupported property "{prop}". '
             f'Supported properties are: {supported_props}'
         )
-    # FIXME: create table only if there is no props_table and it does not contain the chosen prop
-    table = regionprops_table(
-        labels, properties=['label', prop],
-        extra_properties=(
-            ep.projected_area, ep.projected_convex_area,
-            ep.projected_perimeter, ep.projected_circularity)
-    )
+    if props_table is None or prop not in props_table:
+        if labels.ndim != len(voxel_size):
+            raise ValueError(
+                f'Expected a 3D label image but got {labels.ndim}D. '
+                f'If not a 3D label image, try providing the voxel_size.'
+            )
+        props_table = regionprops_table(
+            labels, properties=['label', prop],
+            extra_properties=(
+                ep.projected_area, ep.projected_convex_area,
+                ep.projected_perimeter, ep.projected_circularity),
+            spacing=voxel_size
+        )
+        # Calibrate extra props
+        props_table = ep.calibrate_extra_properties(props_table, voxel_size=voxel_size)
     labels_to_remove = get_label_list(
-        labels=table['label'], values=table[prop],
+        labels=props_table['label'], values=props_table[prop],
         min_val=min_val, max_val=max_val,
         labels_to_remove=labels_to_remove
     )
     if return_all_labels:
-        return labels_to_remove, table['label']
+        return labels_to_remove, props_table['label']
     return labels_to_remove
 
 
@@ -298,7 +333,7 @@ def filter_intensity(
     :param max_val: maximum value (exclusive). Default = inf
     :param return_all_labels: whether to return all labels. Default False.
     :param labels_to_remove: Optional, list of labels to remove
-    :param props_table:
+    :param props_table: Optional, table already measured of properties
     :return: List of labels to remove
     """
     supported_props = [
@@ -313,19 +348,19 @@ def filter_intensity(
             f'Unsupported property "{prop}". '
             f'Supported properties are: {supported_props}'
         )
-    # FIXME: create table only if there is no props_table and it does not contain the chosen prop
-    table = regionprops_table(
-        label_image=labels,
-        intensity_image=img,
-        properties=['label', prop]
-    )
+    if props_table is None or prop not in props_table:
+        props_table = regionprops_table(
+            label_image=labels,
+            intensity_image=img,
+            properties=['label', prop]
+        )
     labels_to_remove = get_label_list(
-        labels=table['label'], values=table[prop],
+        labels=props_table['label'], values=props_table[prop],
         min_val=min_val, max_val=max_val,
         labels_to_remove=labels_to_remove
     )
     if return_all_labels:
-        return labels_to_remove, table['label']
+        return labels_to_remove, props_table['label']
     return labels_to_remove
 
 
@@ -395,19 +430,37 @@ def get_label_list(
 
 def remove_label_objects(
     img_label: np.ndarray,
-    labels: List,
+    label_map: Optional[Dict] = None,
+    labels: Optional[List] = None,
     all_labels: Optional[List] = None,
-    relabel: bool = True,
+    relabel: bool = False,
 ) -> np.ndarray:
     """
     Remove labels from an image.
 
+    Either use the 'label_map', or a list of 'labels' to remove.
+    Basically uses the napari_filter_labels_by_prop.utils.remove_labels function
+
     :param img_label: label image
     :param labels: list of labels to remove
+    :param label_map: dictionary of labels to remove,
+                      key = label ID, value = label ID (keep) or 0 (remove)
     :param all_labels: list of all labels in the image
-    :param relabel: whether to relabel the image or keep the original label ids
+    :param relabel: whether to relabel the image or keep the original label ids.
+                    Default = False
     :return: label image with labels removed
     """
+    # Check if label_map or labels are provided
+    if label_map is None and labels is None:
+        raise ValueError('Either label_map or labels must be provided.')
+    # Check that not both, label_map and labels are provided
+    if label_map is not None and labels is not None:
+        raise ValueError(
+            'Please provide only one, either label_map or labels, not both.'
+        )
+    if label_map is not None:
+        from napari_filter_labels_by_prop.utils import remove_labels
+        return remove_labels(img=img_label, label_map=label_map, relabel=relabel)
     # Convert the lists to numpy arrays
     if all_labels is None:
         all_labels = regionprops_table(img_label, properties=['label'])['label']
@@ -433,6 +486,7 @@ def remove_label_objects(
 
 def calc_pixel_size(size_um: float, voxel_size: tuple) -> float:
     """
+    # DEPRECATED / Unused
     Calculate a calibrated volume to number of pixels.
 
     E.g. for getting a value for filtering on size.
