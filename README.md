@@ -21,18 +21,19 @@ Activate environment:
 
 In the environment:
 
-<!--- 
-Don't use conda to install pytorch...
-`conda install pytorch==1.12.0 cudatoolkit=11.3 -c pytorch`
---->
-
 Install newer version of pytorch with cuda 11.8 (to have the newest cellpose):
+
+Fow Windows and Linux:
 
 `pip install torch==2.5.0 --index-url https://download.pytorch.org/whl/cu118`
 
-<!--
-Below the old version...
+For macOS:
 
+`pip install torch==2.5.0`
+
+
+<!--
+Here the version for older cellpose installs:
 `pip install torch==1.12.0+cu113 --extra-index-url https://download.pytorch.org/whl/cu113`
 -->
 
@@ -41,13 +42,15 @@ Below the old version...
 `scyjava` may require to deactivate and reactive the environment. [See](https://github.com/bioio-devs/bioio-bioformats)
 And maybe (I did not need to following):
 
-mac and linux:
-`export JAVA_HOME=$CONDA_PREFIX`
-
 windows:
 `set JAVA_HOME=%CONDA_PREFIX%\Library`
 
-Install the package... TODO
+mac and linux:
+`export JAVA_HOME=$CONDA_PREFIX`
+
+Install the package:
+
+`pip install git+https://github.com/loicsauteur/iob-ia.git`
 
 <!--
 Install Test dependencies
