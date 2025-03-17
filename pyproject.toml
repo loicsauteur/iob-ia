@@ -59,7 +59,11 @@ dependencies = [
 # "extras" (e.g. for `pip install .[test]`)
 [project.optional-dependencies]
 # add dependencies used for testing here
-test = ["pytest", "pytest-cov"]
+test = [
+    "pytest",
+    "pytest-cov",
+    "scyjava",
+]
 # add anything else you like to have in your dev environment here
 dev = [
     "ipython",
@@ -82,11 +86,16 @@ repository = "https://github.com/loicsauteur/iob-ia"
 # [project.entry-points."some.group"]
 # tomatoes = "iob_ia:main_tomatoes"
 
+[tool.black]
+line-length = 79
+target-version = ['py38', 'py39', 'py310']
+
 # https://docs.astral.sh/ruff
 [tool.ruff]
-line-length = 88
+line-length = 79
 target-version = "py39"
 src = ["src"]
+fix = true
 
 # https://docs.astral.sh/ruff/rules
 [tool.ruff.lint]
@@ -108,6 +117,9 @@ select = [
 ]
 ignore = [
     "D401", # First line should be in imperative mood (remove to opt in)
+    "D100", # Missing docstring in public module
+    "UP006", # type annotations (get it when using typing.Dict)
+    "E501", # line too long. let black handle this
 ]
 
 [tool.ruff.lint.per-file-ignores]

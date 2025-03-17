@@ -1,36 +1,72 @@
+from typing import Optional, Union
+
 import napari
 import numpy as np
-from typing import Optional, List, Union, Dict
-from iob_ia.utils.segment import measure_props
 from napari.utils.colormaps import DirectLabelColormap
 
+from iob_ia.utils.segment import measure_props
 
 __colors__ = {
-    'gray': [1., 1., 1., 1.],
-    'red': [1., 0., 0., 1.],
-    'green': [0., 1., 0., 1.],
-    'blue': [0., 0., 1., 1.],
-    'magenta': [1., 0., 1., 1.],
-    'cyan': [0., 1., 1., 1.],
-    'other': [
+    "gray": [1.0, 1.0, 1.0, 1.0],
+    "red": [1.0, 0.0, 0.0, 1.0],
+    "green": [0.0, 1.0, 0.0, 1.0],
+    "blue": [0.0, 0.0, 1.0, 1.0],
+    "magenta": [1.0, 0.0, 1.0, 1.0],
+    "cyan": [0.0, 1.0, 1.0, 1.0],
+    "other": [
         np.random.random(1)[0],
         np.random.random(1)[0],
         np.random.random(1)[0],
-        1.
-    ]
+        1.0,
+    ],
 }
 
 
 def get_viewer():
+    """Get the current napari viewer or create a new one."""
     viewer = napari.viewer.current_viewer()
     if viewer is None:
         viewer = napari.Viewer()
     return viewer
 
 
+def add_point(
+    point: list,
+    name: str,
+    scale: Optional[tuple] = None,
+    size: int = 100,
+    face_color: str = "magenta",
+) -> None:
+    """
+    Add a 3D point to as a layer to the napari viewer.
+
+    :param point: list of ZYX coordinates (in scale units)
+    :param name: name for the napari layer
+    :param scale: tuple of voxel size, will scale for 3D view
+    :param size: size of the point
+    :param face_color: color of the point
+    :return:
+    """
+    if len(point) != 3:
+        print(
+            f"Warning: point has {len(point)} dimensions."
+            f"This function was made for 3D points..."
+        )
+    viewer = get_viewer()
+    viewer.add_points(
+        np.array(list(point)),
+        name=name,
+        scale=scale,
+        size=size,
+        face_color=face_color,
+    )
+
+
 def add_image(
-    img: np.ndarray, name: str, colormap: str = 'gray',
-    scale: Optional[tuple] = None
+    img: np.ndarray,
+    name: str,
+    colormap: str = "gray",
+    scale: Optional[tuple] = None,
 ) -> None:
     """
     Add an image to the napari viewer.
@@ -43,8 +79,7 @@ def add_image(
     """
     viewer = get_viewer()
     viewer.add_image(
-        img, name=name, blending='additive',
-        colormap=colormap, scale=scale
+        img, name=name, blending="additive", colormap=colormap, scale=scale
     )
 
 
@@ -52,8 +87,8 @@ def add_labels(
     img: np.ndarray,
     name: str,
     scale: Optional[tuple] = None,
-    features: Optional[Dict] = None,
-    colormap: Optional = None
+    features: Optional[dict] = None,
+    colormap: Optional = None,
 ) -> None:
     """
     Add labels to the napari viewer.
@@ -66,14 +101,18 @@ def add_labels(
     :return:
     """
     viewer = get_viewer()
-    viewer.add_labels(img, name=name, scale=scale, features=features, colormap=colormap)
+    viewer.add_labels(
+        img, name=name, scale=scale, features=features, colormap=colormap
+    )
 
 
 def add_pair(
-    img: np.ndarray, labels: np.ndarray,
-    name: str, colormap: str = 'gray',
+    img: np.ndarray,
+    labels: np.ndarray,
+    name: str,
+    colormap: str = "gray",
     scale: Optional[tuple] = None,
-    features: Optional[Dict] = None
+    features: Optional[dict] = None,
 ) -> None:
     """
     Add an image and the corresponding labels to the napari viewer.
@@ -87,21 +126,24 @@ def add_pair(
     :return:
     """
     if img.shape != labels.shape:
-        raise RuntimeError(f'Image and labels should have the same shape. '
-                           f'Image = {img.shape}; labels = {labels.shape}')
+        raise RuntimeError(
+            f"Image and labels should have the same shape. "
+            f"Image = {img.shape}; labels = {labels.shape}"
+        )
     viewer = get_viewer()
     viewer.add_image(
-        img, name=name, blending='additive', colormap=colormap, scale=scale
+        img, name=name, blending="additive", colormap=colormap, scale=scale
     )
-    viewer.add_labels(labels, name=name + '_segmentation', scale=scale,
-                      features=features)
+    viewer.add_labels(
+        labels, name=name + "_segmentation", scale=scale, features=features
+    )
 
 
 def add_multichannel_image(
     img: np.ndarray,
     name: str,
-    channel_names: Optional[List] = None,
-    scale: Optional[tuple] = None
+    channel_names: Optional[list] = None,
+    scale: Optional[tuple] = None,
 ) -> None:
     """
     Add a multichannel image to the napari viewer.
@@ -116,41 +158,47 @@ def add_multichannel_image(
     """
     # Check if image is 2D or 3D (plus channel axis)
     if img.ndim not in [3, 4]:
-        raise ValueError(f'Image must have 2 or 3 dimensions, with channels. '
-                         f'You have {img.ndim} dimensions. '
-                         f'With an image shape of: {img.shape}.')
+        raise ValueError(
+            f"Image must have 2 or 3 dimensions, with channels. "
+            f"You have {img.ndim} dimensions. "
+            f"With an image shape of: {img.shape}."
+        )
     # Check that there are not more than 5 channels
     if img.shape[0] > 5:
-        raise ValueError(f'Image must have 5 or fewer channels. '
-                         f'You have {img.shape[0]} channels. '
-                         f'With an image shape of: {img.shape}.')
+        raise ValueError(
+            f"Image must have 5 or fewer channels. "
+            f"You have {img.shape[0]} channels. "
+            f"With an image shape of: {img.shape}."
+        )
     if img.shape[0] == 1:
         add_image(img, name=name, scale=scale)
     if channel_names is None:
-        channel_names = [f'ch1{i}' for i in range(1, img.shape[0] + 1)]
+        channel_names = [f"ch1{i}" for i in range(1, img.shape[0] + 1)]
     if img.shape[0] != len(channel_names):
-        raise ValueError(f'Channels names do not correspond to the number '
-                         f'of image channels. Channels names = {channel_names}, and '
-                         f'image has {img.shape[0]} channels.')
+        raise ValueError(
+            f"Channels names do not correspond to the number "
+            f"of image channels. Channels names = {channel_names}, and "
+            f"image has {img.shape[0]} channels."
+        )
     # Add image channels with hard-coded LUTs
     colors = ["blue", "green", "red", "magenta", "gray"]
     for ch in range(img.shape[0]):
         add_image(
             img[ch],
-            name=f'{name}_{channel_names[ch]}',
+            name=f"{name}_{channel_names[ch]}",
             colormap=colors[ch],
-            scale=scale
+            scale=scale,
         )
 
 
 def create_napari_features(
     img_label: Optional[np.ndarray] = None,
-    img_intensity: Optional[Union[np.ndarray, List[np.ndarray]]] = None,
+    img_intensity: Optional[Union[np.ndarray, list[np.ndarray]]] = None,
     voxel_size: Union[float, tuple] = (1, 1, 1),
-    props_table: Optional[Dict] = None
+    props_table: Optional[dict] = None,
 ) -> dict:
     """
-    Create a dictionary of label features, that is compatible with a napari label layer.
+    Create a dict of label features, compatible with a napari label layer.
 
     :param img_label: label image
     :param img_intensity: intensity image (CZYX or list of ZYX)
@@ -160,25 +208,25 @@ def create_napari_features(
     """
     if img_label is None and props_table is None:
         raise ValueError(
-            f'You must supply either the label image or the regionprops_table. '
+            "You must supply either the label image or the regionprops_table."
         )
     # If properties not already supplied...
     if props_table is None:
         props_table = measure_props(
             img_label=img_label,
             img_intensity=img_intensity,
-            voxel_size=voxel_size
+            voxel_size=voxel_size,
         )
-    label_max = props_table['label'].max()
+    label_max = props_table["label"].max()
     features = {}
     for k, v in props_table.items():
         # Don't include the label
-        if k == 'label':
+        if k == "label":
             continue
-        # Per measurement, create a 'default' dictionary entry for all labels + 0
-        features[k] = ['none'] * (label_max + 1)
+        # Per measurement, create a 'default' dict entry for all labels + 0
+        features[k] = ["none"] * (label_max + 1)
         # Assign the proper values to the feature value array
-        for i, _label in enumerate(props_table['label']):
+        for i, _label in enumerate(props_table["label"]):
             features[k][_label] = v[i]
     return features
 
@@ -195,8 +243,8 @@ def single_colormap(color: str, n_labels: int = 65535) -> DirectLabelColormap:
     """
     # Check the color
     if color not in __colors__:
-        print(f'Color {color} not found, using random color ', end='')
-        color = __colors__['other']
+        print(f"Color {color} not found, using random color ", end="")
+        color = __colors__["other"]
         print(color)
     else:
         color = __colors__[color]

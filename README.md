@@ -6,7 +6,23 @@
 [![CI](https://github.com/loicsauteur/iob-ia/actions/workflows/ci.yml/badge.svg)](https://github.com/loicsauteur/iob-ia/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/loicsauteur/iob-ia/branch/main/graph/badge.svg)](https://codecov.io/gh/loicsauteur/iob-ia)
 
-Package for image analysis.
+Package for 3D image analysis.
+
+# Description
+
+This package contains functions for 3D cell segmentation, classification, measurements and visualization.
+- Segmentation:
+   - Wrapper for 3D cellpose segmentation
+   - Measurement-based (region-props) filtering of objects
+   - Cell and cytoplasm mask generation from nuclear segmentations
+- Classification:
+   - Create tables with measurements (region-props) for different cell compartments
+   - Classify based on measurements
+   -
+
+# Usage
+
+use via Jupyter notebooks. napari is used for visualitzation.
 
 
 # Installation
@@ -21,32 +37,28 @@ Activate environment:
 
 In the environment:
 
-Install newer version of pytorch with cuda 11.8 (to have the newest cellpose):
+Install pytorch with cuda 11.8 (for the newest cellpose):
 
 Fow Windows and Linux:
 
 `pip install torch==2.5.0 --index-url https://download.pytorch.org/whl/cu118`
-
-For macOS:
-
-`pip install torch==2.5.0`
-
 
 <!--
 Here the version for older cellpose installs:
 `pip install torch==1.12.0+cu113 --extra-index-url https://download.pytorch.org/whl/cu113`
 -->
 
+Install JVM for [Bioio-BioFormats](https://github.com/bioio-devs/bioio-bioformats):
+
 `conda install -c conda-forge scyjava`
 
-`scyjava` may require to deactivate and reactive the environment. [See](https://github.com/bioio-devs/bioio-bioformats)
-And maybe (I did not need to following):
+Note: `scyjava` may require to deactivate and reactive the environment. [See](https://github.com/bioio-devs/bioio-bioformats)
 
-windows:
-`set JAVA_HOME=%CONDA_PREFIX%\Library`
+In case of `JVMNoFoundExceptions`, set the `JAVA_HOME`:
 
-mac and linux:
-`export JAVA_HOME=$CONDA_PREFIX`
+Windows: `set JAVA_HOME=%CONDA_PREFIX%\Library`
+
+macOS and Linux: `export JAVA_HOME=$CONDA_PREFIX`
 
 Install the package:
 
@@ -56,4 +68,3 @@ Install the package:
 Install Test dependencies
     `pip install -e ".[test]"`
 -->
-
