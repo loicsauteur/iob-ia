@@ -37,22 +37,35 @@ Activate environment:
 
 In the environment:
 
-Install pytorch with cuda 11.8 (for the newest cellpose):
+Install pytorch with cuda 12.6 (for the newest cellpose):
 
 Fow Windows and Linux:
 
-<!--For cellpose v4.*-->
-`pip install torch --index-url https://download.pytorch.org/whl/cu118`
+<!--For cellpose v4.*; according to docs-->
+`pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126`
+
+Install the package:
+
+`pip install git+https://github.com/loicsauteur/iob-ia.git`
 
 <!--
+Install Test dependencies
+    `pip install -e ".[test, dev]"`
+-->
+
+
+<!--
+for cellpose approx. v4.0.2
+pip install torch --index-url https://download.pytorch.org/whl/cu118
+
 For cellpose v3.x
 `pip install torch==2.5.0 --index-url https://download.pytorch.org/whl/cu118`
 
 Here the version for older cellpose installs:
 `pip install torch==1.12.0+cu113 --extra-index-url https://download.pytorch.org/whl/cu113`
--->
 
-<!--
+
+# older versions of bioio needed scyjava installation
 # seems like this is not necessary anymore...
 Install JVM for [Bioio-BioFormats](https://github.com/bioio-devs/bioio-bioformats):
 
@@ -65,13 +78,4 @@ In case of `JVMNoFoundExceptions`, set the `JAVA_HOME`:
 Windows: `set JAVA_HOME=%CONDA_PREFIX%\Library`
 
 macOS and Linux: `export JAVA_HOME=$CONDA_PREFIX`
--->
-
-Install the package:
-
-`pip install git+https://github.com/loicsauteur/iob-ia.git`
-
-<!--
-Install Test dependencies
-    `pip install -e ".[test, dev]"`
 -->
