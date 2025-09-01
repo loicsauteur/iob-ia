@@ -119,7 +119,7 @@ def measure_props(
     """
     Measure the properties of the labels.
 
-    Allows props including optional (multi-channel) intensity image.
+    Allow props including optional (multi-channel) intensity image.
 
     :param img_label: 3D label image
     :param img_intensity:  a list of 3D channels or a single 3D CZYX image
@@ -201,16 +201,16 @@ def measure_props(
 
 def segment_3d_cellpose(
     img: np.ndarray,
-    model_path: str = "cyto3",
+    model_path: str = "cpsam",
     anisotropy: Optional[float] = None,
     flow3D_smooth: int = 0,
     cellprob_threshold: float = 0.0,
 ) -> np.ndarray:
     """
-    Use cellpose cyto3 to segment the 3D image.
+    Use cellpose cpsam to segment the 3D image.
 
     :param img: single channel image
-    :param model_path: path to cellpose model. Default = 'cyto3'
+    :param model_path: path to cellpose model. Default = 'cpsam'
     :param anisotropy: Optional, anisotropy rescaling factor
     :param flow3D_smooth: gaussian sigma for smoothing 3D flows. Default = 0
                     Note: This only helps a bit, fusing smaller pieces...
@@ -220,7 +220,8 @@ def segment_3d_cellpose(
     # check the image first
     if img.ndim != 3:
         raise ValueError(
-            f"Image must be 3D. You have {img.ndim} dimensions. "
+            f"Image must be a dingle channel in 3D. "
+            f"You have {img.ndim} dimensions. "
             f"With an image shape of: {img.shape}."
         )
 
@@ -236,19 +237,19 @@ def segment_3d_cellpose(
     channels = [0, 0]
 
     # Set up the model
-    if model_path == "cyto3":
+    if model_path == "cpsam":
         model = models.Cellpose(gpu=use_gpu, model_type=model_path)
         # Run 3D cellpose
-        masks, flows, _, _ = model.eval(
+        result = model.eval(
             img,
-            channels=channels,
+            channels=channels,  # FIXME this is deprecated
             diameter=12,
             do_3D=True,
             anisotropy=anisotropy,
             # newer version calls it flow3D_smooth not dP_smooth
-            dP_smooth=flow3D_smooth,
+            flow3D_smooth=flow3D_smooth,
             cellprob_threshold=cellprob_threshold,
-            z_axis=0,
+            # z_axis=0,
         )
     else:
         model = models.CellposeModel(gpu=True, pretrained_model=model_path)
@@ -260,19 +261,18 @@ def segment_3d_cellpose(
         #  cellprob_threshold maybe decrease to -3
         #  (range -6 to + 6, default 0, smaller=more cells)
         # Run 3D cellpose
-        masks, flows, _ = model.eval(
+        result = model.eval(
             img,
-            channels=channels,
+            channels=channels,  # FIXME this is deprecated
             diameter=12,
             do_3D=True,
             anisotropy=anisotropy,
-            # newer version calls it flow3D_smooth not dP_smooth
             cellprob_threshold=cellprob_threshold,
-            dP_smooth=flow3D_smooth,
-            z_axis=0,
+            flow3D_smooth=flow3D_smooth,
+            # z_axis=0,
         )
-
-    return masks
+    # eval returns multiple objects (number of objects may change)
+    return result[0]  # (first item is the mask)
 
 
 def filter_shape(

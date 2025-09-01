@@ -22,7 +22,7 @@ This package contains functions for 3D cell segmentation, classification, measur
 
 # Usage
 
-use via Jupyter notebooks. napari is used for visualitzation.
+use via Jupyter notebooks. napari is used for visualization.
 
 
 # Installation
@@ -41,13 +41,19 @@ Install pytorch with cuda 11.8 (for the newest cellpose):
 
 Fow Windows and Linux:
 
-`pip install torch==2.5.0 --index-url https://download.pytorch.org/whl/cu118`
+<!--For cellpose v4.*-->
+`pip install torch --index-url https://download.pytorch.org/whl/cu118`
 
 <!--
+For cellpose v3.x
+`pip install torch==2.5.0 --index-url https://download.pytorch.org/whl/cu118`
+
 Here the version for older cellpose installs:
 `pip install torch==1.12.0+cu113 --extra-index-url https://download.pytorch.org/whl/cu113`
 -->
 
+<!--
+# seems like this is not necessary anymore...
 Install JVM for [Bioio-BioFormats](https://github.com/bioio-devs/bioio-bioformats):
 
 `conda install -c conda-forge scyjava`
@@ -59,6 +65,7 @@ In case of `JVMNoFoundExceptions`, set the `JAVA_HOME`:
 Windows: `set JAVA_HOME=%CONDA_PREFIX%\Library`
 
 macOS and Linux: `export JAVA_HOME=$CONDA_PREFIX`
+-->
 
 Install the package:
 
@@ -66,5 +73,5 @@ Install the package:
 
 <!--
 Install Test dependencies
-    `pip install -e ".[test]"`
+    `pip install -e ".[test, dev]"`
 -->

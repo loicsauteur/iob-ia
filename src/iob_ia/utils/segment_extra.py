@@ -26,7 +26,7 @@ def scaffold_segmentation(
     - Threshold the image and keep only the biggest object
         - This may cause some problems...
     - Make slice-wise convex hull of found objects
-    :param img: input multi channel image
+    :param img: input multichannel image
     :param voxel_size: voxel size (tuple) of image
     :param downscale: downscale factor
     :return:

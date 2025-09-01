@@ -40,16 +40,31 @@ classifiers = [
 ]
 # add your package dependencies here
 dependencies = [
-    'napari==0.5.5',
-    'napari[all]',
-    'bioio-bioformats==1.0.0',
-    'bioio==1.1.0',
+    # 'napari==0.5.5', # TODO: previously together with the napari[all] (below)
+    'napari[all]', # TODO: check that everything works with the latest napari
+    'bioio-bioformats', # TODO checking if newest version works (instead of ==1.0.0)
+    'bioio', # TODO checking if newest version works (instead of ==1.1.0)
     'bioio-nd2',
-    'cellpose[gui]==3.1.0',
+    # 'cellpose[all]==3.1.1.1', # [all], also installs the distributed_segmentation dependencies
+    'cellpose[all]', # [all], also installs the distributed_segmentation dependencies
+    'dask_image', # for cellpose 3.1.1.1
+    'dask_jobqueue', # for cellpose 3.1.1.1
+    'bokeh', # for cellpose 3.1.1.1 and dask (localhost when segmenting)
     'notebook==7.3.2',
     # install the label filter plugin from specific branch
     # 'napari-filter-labels-by-prop@git+https://github.com/loicsauteur/napari-filter-labels-by-prop@ProjectedProps',
     'napari-filter-labels-by-prop',
+
+    # 'pyclesperanto-prototype', # Fixme for testing # Fixme: remove
+    # 'siphash24', # for CLE # Fixme: remove
+
+    # FIXME cucim to use skimage on GPU, but region_props is still on CPU
+    # Install cucim, see here: https://github.com/rapidsai/cucim/issues/86#issuecomment-905919774
+    # "git+https://github.com/rapidsai/cucim.git@v21.08.01#egg=cucim&subdirectory=python/cucim" scipy scikit-image
+    # 'cucim-cu11', # skimage on GPU (for CUDA 11) - does not work (not Win compatible)
+    # 'cucim@git+https://github.com/rapidsai/cucim.git@v22.12.00#egg=cucim&subdirectory=python/cucim',
+    # 'cupy-cuda11x==13.4.1', # needed for cucim (installs also fastrlock)
+
     'numpy==1.26.4',
     'scikit-image==0.22.0',
     'scipy==1.15.1',

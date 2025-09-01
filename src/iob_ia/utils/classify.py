@@ -388,3 +388,26 @@ def estimate_threshold(prop: str, table: pd.DataFrame) -> float:
         # Calculate the new threshold
         t = (m1 + m2) / 2
     return t
+
+
+def measure_p2p_distance(
+    table: pd.DataFrame,
+    p_centroid: tuple[float],
+    column_name: str,
+) -> pd.DataFrame:
+    """
+    Measure the distance of all table centroids to the given p_centroid.
+
+    Intended to measure the cell distribution in relation to e.g.
+    the scaffold center.
+    :param table: regionprops_table that contains the centroids
+    :param p_centroid: tuple of coordinates (calibrated)
+    :param column_name: name for the new colum table
+    :return: same table but with new column
+    """
+    # Sanity checks
+    if "centroid-0" not in table.columns:
+        raise KeyError("No centroids in table")
+    if "centroid-2" not in table.columns:
+        raise KeyError("No 3D centroids in table")
+    # Todo, calculate distances and add the column
