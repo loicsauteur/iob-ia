@@ -44,7 +44,8 @@ dependencies = [
     'bioio-bioformats==1.3.0',
     'bioio==3.0.0',
     'bioio-nd2==1.4.0',
-    'cellpose[all]', # [all], also installs the distributed_segmentation dependencies
+    'bioio-ome-tiff==1.4.0',  # for ome-tiff writer
+    'cellpose[all]==4.0.6', # [all], also installs the distributed_segmentation dependencies
     'dask_image', # for cellpose distributed
     'dask_jobqueue', # for cellpose distributed
     'bokeh', # for cellpose distributed and dask (localhost when segmenting)

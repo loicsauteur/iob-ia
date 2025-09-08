@@ -1,28 +1,59 @@
 import os
+from typing import Optional
 from zipfile import ZIP_DEFLATED
 
 import numpy as np
 import tifffile
+from bioio_base.types import PhysicalPixelSizes
+from bioio_ome_tiff.writers import OmeTiffWriter
 from tifffile import imwrite
 
 from iob_ia.custom_image import CustomImage
 
 
-def save_image_channel(img: np.ndarray, path: str):
+def save_image_channel(
+    img: np.ndarray,
+    path: str,
+    channel_order: str = "ZYX",
+    voxel_size: Optional[tuple] = None,
+    channel_name: Optional[str] = None,
+):
     """
     Save an image as tif file.
 
+    Only if voxel_size is provided, the image will be saved as ome.tiff file,
+    otherwise as plane tif (using the TIFFFILE library).
+
     :param img: image
     :param path: save path
+    :param channel_order: channel order. Default is "ZYX"
+    :param voxel_size: (optional) tuple of voxel size
+    :param channel_name: list of str channel names
     :return:
     """
-    imwrite(path, img)
+    if voxel_size is not None:
+        if len(voxel_size) != 3:
+            raise ValueError(
+                f"Voxel size requires a tuple of length 3 (for X, Y, Z voxel sizes). "
+                f"Got = {voxel_size}."
+            )
+        path = path.replace(".tif", ".ome.tif")
+        OmeTiffWriter.save(
+            img,
+            path,
+            dim_order=channel_order,
+            channel_names=[channel_name],
+            physical_pixel_sizes=PhysicalPixelSizes(*voxel_size),
+        )
+
+    else:
+        imwrite(path, img)
     print(f"Saved image to: {path}")
 
 
 def save_labels(labels: np.ndarray, path: str):
     """
-    Save labels to .tif file.
+    Save labels to .tif file (compressed).
 
     :param labels:
     :param path:
@@ -77,6 +108,13 @@ def read_image(path: str) -> CustomImage:
         import bioio_nd2
 
         return CustomImage(path, reader=bioio_nd2.Reader)
+
+    # Support for ome.tif
+    if path.endswith("ome.tiff") or path.endswith("ome.tif"):
+        import bioio_ome_tiff
+
+        return CustomImage(path, reader=bioio_ome_tiff.Reader)
+
     if file_ext == "vsi" or file_ext == "tif" or file_ext == "tiff":
         import bioio_bioformats
 
@@ -85,7 +123,7 @@ def read_image(path: str) -> CustomImage:
 
 def read_labels(path: str) -> np.ndarray:
     """
-    Read a labels image from .tif file.
+    Read a labels image from .tif file, using the TIFFFILE library.
 
     :param path: path to file
     :return: plain np.ndarray

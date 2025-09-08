@@ -1,3 +1,12 @@
+"""
+Collection of functions related to cell segmentation.
+
+For rough cell segmentation using cellpose.
+Filtering of the segmented objects is also here, but should use filter_labels functions.
+#Fixme Î (above)
+Includes also functions for QuPath-like cell compartment creation.
+"""
+
 from time import time
 from typing import Optional, Union
 
@@ -199,6 +208,72 @@ def measure_props(
     return table
 
 
+def segment_2d_sub_projections(
+    img: np.ndarray,
+    voxel_size: tuple,
+    substack_size: float = 40.0,
+    model_path: str = "cpsam",
+    cellprob_threshold: float = 0.0,
+) -> (np.ndarray, np.ndarray, tuple):
+    """
+    Uses cellpose to segment 2D max projections of substack parts.
+
+    :param img: single channel image
+    :param voxel_size: ZYX voxel size
+    :param substack_size: substack to be max projected in microns. Default = 40.0
+    :param model_path: path to cellpose model. Default = 'cpsam'
+    :param cellprob_threshold: cellpose cellprob threshold. Default = 0.0
+    :return: 3D mask image
+    :return: modified image (stack of substacks)
+    :return: new voxel size of the output mask
+    """
+    # check the image first
+    if img.ndim != 3:
+        raise ValueError(
+            f"Image must be single channel in 3D. "
+            f"You have {img.ndim} dimensions. "
+            f"With an image shape of: {img.shape}."
+        )
+    # Local imports
+    from cellpose import core, models
+    from cellpose.io import logger_setup
+
+    use_gpu = core.use_gpu()
+    logger_setup()
+    print(">>> GPU activated:", use_gpu)
+
+    # Calculate n-slices to be max projected
+    n_slices = int(round(substack_size / voxel_size[0], 0))
+
+    # Loop over substacks
+    mask_sub_stacks = []
+    substacks = []
+    n_label_max = 0
+    model = models.CellposeModel(gpu=use_gpu, model_type=model_path)
+    for z in range(0, img.shape[0], n_slices):
+        # Sequential max projections (info: if z>Z-dim, takes Z-dim)
+        substack = np.max(img[z : z + n_slices, :, :], axis=0)
+
+        # Segment
+        result = model.eval(
+            substack,
+            diameter=15,
+            cellprob_threshold=cellprob_threshold,
+            do_3D=False,
+        )
+        # increment label ids for subsequent stacks
+        mask = np.where(result[0] != 0, result[0] + n_label_max, result[0])
+        n_label_max = mask.max()
+        mask_sub_stacks.append(mask)
+        substacks.append(substack)
+    # Convert the substack projection to single stack and return it + new voxel size
+    return (
+        np.asarray(mask_sub_stacks),
+        np.asarray(substacks),
+        (substack_size, voxel_size[1], voxel_size[2]),
+    )
+
+
 def segment_3d_cellpose(
     img: np.ndarray,
     model_path: str = "cpsam",
@@ -220,7 +295,7 @@ def segment_3d_cellpose(
     # check the image first
     if img.ndim != 3:
         raise ValueError(
-            f"Image must be a dingle channel in 3D. "
+            f"Image must be a single channel in 3D. "
             f"You have {img.ndim} dimensions. "
             f"With an image shape of: {img.shape}."
         )

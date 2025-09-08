@@ -1,4 +1,10 @@
-"""A (hopefully) better collection of label filtering functions."""
+"""
+A (hopefully) better collection of label filtering functions.
+
+Use measure_label_props to create the a props_table.
+Then create a dict of properties (keys) and [min, max] (values), to
+use the  filter_labels_by_property function to create a filtered label image.
+"""
 
 from typing import Any, Optional, Union
 

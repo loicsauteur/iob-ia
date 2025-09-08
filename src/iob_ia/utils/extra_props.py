@@ -1,18 +1,24 @@
+"""
+Measure extra properties for regionprops_table.
+
+Allows to include measurements of projected properties,
+which cannot be calculated in 3D.
+"""
+
 import numpy as np
 from skimage.measure import regionprops
 
-
 # List of all extra properties
 __all_extra_props__ = [
-    'projected_area',
-    'projected_circularity',
-    'projected_perimeter',
-    'projected_convex_area'
+    "projected_area",
+    "projected_circularity",
+    "projected_perimeter",
+    "projected_convex_area",
 ]
 __calibrated_extr_props__ = [
-    'projected_area',
-    'projected_perimeter',
-    'projected_convex_area',
+    "projected_area",
+    "projected_perimeter",
+    "projected_convex_area",
 ]
 
 
@@ -55,8 +61,15 @@ def projected_convex_area(region_mask: np.ndarray) -> int:
 
 
 def project_mask(region_mask: np.ndarray) -> np.ndarray:
+    """
+    Project the mask along the first (Z) axis.
+
+    Helper function to calculate the extra props.
+    :param region_mask: mask of a region
+    :return: Z-projected mask
+    """
     if len(region_mask.shape) != 3:
-        raise ValueError('Input must be a 3D label image.')
+        raise ValueError("Input must be a 3D label image.")
     # Project along the first (Z) axis
     img_proj = np.max(region_mask, axis=0)
     return np.asarray(img_proj, dtype=np.uint8)
@@ -85,27 +98,28 @@ def calibrate_extra_properties(table: dict, voxel_size: tuple) -> dict:
     # Extra props should only be for 3D images
     if len(voxel_size) != 3:
         raise ValueError(
-            f'Extra properties are only for 3D images. Got voxel size of {voxel_size}.'
+            f"Extra properties are only for 3D images. Got voxel size of {voxel_size}."
         )
     # Skip calibration if voxel size is all 1's
-    if voxel_size == (1., 1., 1.):
+    if voxel_size == (1.0, 1.0, 1.0):
         return table
 
     if voxel_size[1] != voxel_size[2]:
         raise NotImplementedError(
-            f'Different XY pixel size is not supported. Got {voxel_size[1:]}.'
+            f"Different XY pixel size is not supported. Got {voxel_size[1:]}."
         )
     for prop in __calibrated_extr_props__:
         # Skip props that are not in the table
         if prop not in table:
             continue
-        if 'area' in prop:
+        if "area" in prop:
             # area properties
             table[prop] = table[prop] * voxel_size[1] ** 2
         else:
             # i.e. perimeter
             table[prop] = table[prop] * voxel_size[1]
     return table
+
 
 def make_sphere() -> np.ndarray:
     """
@@ -115,32 +129,11 @@ def make_sphere() -> np.ndarray:
     https://forum.image.sc/t/measure-sphericity-using-python/95826/15
     :return: 100x100x100 binary image of a sphere
     """
-
     img_sphere = np.zeros((100, 100, 100), dtype=np.uint8)
     center = np.array(img_sphere.shape) // 2
     z, y, x = np.ogrid[:100, :100, :100]
     sphere = (x - center[2]) ** 2 + (y - center[1]) ** 2 + (
-        z - center[0]) ** 2 <= 40 ** 2
+        z - center[0]
+    ) ** 2 <= 40**2
     img_sphere[sphere] = 1
     return img_sphere
-
-
-'''
-if __name__ == '__main__':
-    path = 'G:\\20241120_IOB_Magdalena\\iob-ia\\resources\\wannabe_sphere_and_ellipse.tif'
-    path1 = 'G:\\20241120_IOB_Magdalena\\iob-ia\\resources\\wannabe_sphere.tif'
-    from tifffile import imread
-    from skimage.measure import label
-    img = imread(path)
-    img1 = label(imread(path1)>1)
-    img = img > 1
-    img = label(img)
-    #print(img.shape, img.dtype, img.max())
-    #print(img1.shape, img1.dtype, img1.max())
-
-    props = regionprops_table(img, extra_properties=(projected_circularity, projected_perimeter, projected_hull))
-    props1 = regionprops_table(img1, extra_properties=(projected_circularity,projected_perimeter, projected_hull))
-    print(props)
-    print()
-    print(props1)
-'''

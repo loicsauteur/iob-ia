@@ -1,3 +1,10 @@
+"""
+Collection of functions for simple object classification.
+
+Create tables and classify based on the tables.
+#FIXME: need to check this collections since it is older...
+"""
+
 from typing import Optional
 
 import numpy as np

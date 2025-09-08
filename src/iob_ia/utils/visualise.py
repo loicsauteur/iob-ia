@@ -1,3 +1,5 @@
+"""Helper functions to visualise in napari."""
+
 from typing import Optional, Union
 
 import napari

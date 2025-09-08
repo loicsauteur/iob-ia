@@ -1,4 +1,8 @@
-"""Functions for image specific segmentation tasks."""
+"""
+Functions for image specific segmentation tasks.
+
+Some functions specific for scaffold segmentation.
+"""
 
 from time import time
 
