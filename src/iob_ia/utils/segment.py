@@ -308,18 +308,14 @@ def segment_3d_cellpose(
     logger_setup()
     print(">>> GPU activated:", use_gpu)
 
-    # grayscale image
-    channels = [0, 0]
-
     # Set up the model
     if model_path == "cpsam":
-        model = models.Cellpose(gpu=use_gpu, model_type=model_path)
+        model = models.CellposeModel(gpu=use_gpu, model_type=model_path)
         # Run 3D cellpose
         result = model.eval(
             img,
-            channels=channels,  # FIXME this is deprecated
-            diameter=12,
             do_3D=True,
+            z_axis=0,
             anisotropy=anisotropy,
             # newer version calls it flow3D_smooth not dP_smooth
             flow3D_smooth=flow3D_smooth,
@@ -338,13 +334,11 @@ def segment_3d_cellpose(
         # Run 3D cellpose
         result = model.eval(
             img,
-            channels=channels,  # FIXME this is deprecated
-            diameter=12,
             do_3D=True,
+            z_axis=0,
             anisotropy=anisotropy,
             cellprob_threshold=cellprob_threshold,
             flow3D_smooth=flow3D_smooth,
-            # z_axis=0,
         )
     # eval returns multiple objects (number of objects may change)
     return result[0]  # (first item is the mask)

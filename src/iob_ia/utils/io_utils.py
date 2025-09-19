@@ -67,7 +67,9 @@ def gen_out_path(path: str, name: str = "output") -> str:
     """
     Generate output TIF-file path from input path and name.
 
-    E.g. to create a save path with similar filename...
+    Create a save path with similar filename, e.g.:
+    p = gen_out_path('C:/images/test.nd2', 'my_mask')
+    p = 'C:/images/test_my_mask.tif'
 
     :param path: str path to an input file
     :param name: str addition to name of the output file

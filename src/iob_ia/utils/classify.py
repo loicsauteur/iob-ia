@@ -5,7 +5,7 @@ Create tables and classify based on the tables.
 #FIXME: need to check this collections since it is older...
 """
 
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -357,16 +357,19 @@ def available_classifications(table: pd.DataFrame) -> None:
         print(f"- {c}")
 
 
-def estimate_threshold(prop: str, table: pd.DataFrame) -> float:
+def estimate_threshold(prop: str, table: Union[pd.DataFrame, dict]) -> float:
     """
     Estimates the threshold using an iterative approach.
 
     This is under the assumption of a bimodal distribution.
 
     :param prop: column name of the table
-    :param table: regionprops_table
+    :param table: regionprops_table (as dictionary or pd.DataFrame)
     :return: threshold value
     """
+    # Convert dictionary to dataframe
+    if isinstance(table, dict):
+        table = pd.DataFrame.from_dict(table)
     # Ensure the property is in the table
     if prop not in table.columns:
         # Show available classifications

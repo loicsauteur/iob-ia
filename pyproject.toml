@@ -40,7 +40,7 @@ classifiers = [
 ]
 # add your package dependencies here
 dependencies = [
-    'napari[all]==0.6.4',
+    'napari[pyqt6, optional]==0.6.4',  # basically napari[all], but with pyqt6 (which cellpose gui uses) instead of pyqt5
     'bioio-bioformats==1.3.0',
     'bioio==3.0.0',
     'bioio-nd2==1.4.0',

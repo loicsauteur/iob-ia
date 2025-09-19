@@ -390,7 +390,6 @@ class Iob2DImageCheck:
                     f"{self.channel_names[self.segment_channels[i]]}",
                 )
                 save_labels(self.masks[i], out_path)
-                print(f"Saved mask image to {out_path}.")
         if self.filtered_masks is not None:
             for i in range(len(self.segment_channels)):
                 out_path = gen_out_path(
@@ -399,7 +398,6 @@ class Iob2DImageCheck:
                     f"{self.channel_names[self.segment_channels[i]]}",
                 )
                 save_labels(self.filtered_masks[i], out_path)
-                print(f"Saved mask image to {out_path}.")
         if self.double_pos_masks is not None:
             ch1 = f"ch{self.segment_channels[0]}-{self.channel_names[self.segment_channels[0]]}"
             ch2 = f"ch{self.segment_channels[1]}-{self.channel_names[self.segment_channels[1]]}"
@@ -408,13 +406,11 @@ class Iob2DImageCheck:
                 name=f"{wf}_{ch1}_objects_pos_for_{ch2}_objects_mask",
             )
             save_labels(self.double_pos_masks[0], out_path)
-            print(f"Saved mask image to {out_path}.")
             out_path = gen_out_path(
                 self.path,
                 name=f"{wf}_{ch2}_objects_pos_for_{ch1}_objects_mask",
             )
             save_labels(self.double_pos_masks[1], out_path)
-            print(f"Saved mask image to {out_path}.")
         if self.imgs is not None:
             for i in range(len(self.segment_channels)):
                 out_path = gen_out_path(
@@ -423,11 +419,11 @@ class Iob2DImageCheck:
                     f"{self.channel_names[self.segment_channels[i]]}",
                 )
                 save_image_channel(self.imgs[i], out_path)
-                print(f"Saved image (channel) to {out_path}.")
         if self.result_table is not None:
-            pass
-            # todo: check how to save dataframe
-            # self.result_table.to_csv()
+            out_path = gen_out_path(self.path, name=f"{wf}_results-table")
+            out_path = out_path.replace(".tif", ".csv")
+            pd.DataFrame.to_csv(self.result_table, out_path)
+            print(f"Saved results table to {out_path}.")
 
     def get_cp_mask(self, channel: int) -> (np.ndarray, tuple):
         """

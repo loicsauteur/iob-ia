@@ -1,7 +1,7 @@
 """
 A (hopefully) better collection of label filtering functions.
 
-Use measure_label_props to create the a props_table.
+Use measure_label_props to create a props_table.
 Then create a dict of properties (keys) and [min, max] (values), to
 use the  filter_labels_by_property function to create a filtered label image.
 """
@@ -16,6 +16,40 @@ from skimage.util import map_array
 import iob_ia.utils.extra_props as ep
 from iob_ia.utils.classify import estimate_threshold
 from iob_ia.utils.segment import check_skimage_version
+
+
+def count_unique_labels(labels: np.ndarray) -> int:
+    """
+    Count the number of unique labels in a label image.
+
+    This is just a helper function...
+
+    :param labels: 3D label image
+    :return: int number of unique labels - 1 for the background
+    """
+    return len(np.unique(labels)) - 1
+
+
+def get_prop_mean(prop: str, table: dict) -> float:
+    """
+    Get the mean of a property in a regionprops_table.
+
+    :param prop: str
+    :param table: dict of regionpros_table
+    :return: float mean value
+    """
+    return float(np.mean(table[prop]))
+
+
+def get_prop_median(prop: str, table: dict) -> float:
+    """
+    Get the median of a property in a regionprops_table.
+
+    :param prop: str
+    :param table: dict of regionpros_table
+    :return: float median value
+    """
+    return float(np.median(table[prop]))
 
 
 def measure_label_props(
@@ -205,6 +239,8 @@ def filter_labels_by_property(
         output_vals = np.where(output_vals == label, 0, output_vals)
 
     # Create filtered label image
+    if verbose:
+        print("Creating filtered mask...")
     img_filtered = map_array(
         input_arr=img_label, input_vals=input_vals, output_vals=output_vals
     )
