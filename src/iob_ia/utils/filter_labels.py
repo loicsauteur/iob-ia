@@ -150,6 +150,16 @@ def filter_by_property(
     if verbose:
         print(f"Filtering on {prop} between {min_val} and {max_val}")
 
+    # Dynamic min max values
+    if isinstance(min_val, str):
+        min_val = __calculate_filter_value__(
+            min_val, prop, props_table, verbose=False
+        )
+    if isinstance(max_val, str):
+        max_val = __calculate_filter_value__(
+            max_val, prop, props_table, verbose=False
+        )
+
     # Get a list of dataframe indices to remove
     indices_to_drop = []
     if labels_to_remove is None:
@@ -170,6 +180,85 @@ def filter_by_property(
             f'(previously {len(props_table["label"])})'
         )
     return df.to_dict(), labels_to_remove
+
+
+def __calculate_filter_value__(
+    value: str, prop: str, props_table: dict, verbose: bool = False
+) -> float:
+    """
+    Calculate dynamic filter values.
+
+    Allows passing string instead of float values to filter dictionaries for the
+    filter_labels_by_property method.
+    Supported are 'bimodal', 'mean' and 'median', with optional multiplication or
+    division of the threshold value.
+    Use e.g. 'bimodal*3' to increase the threshold value by 3 times the bimodal.
+
+    :param value: str for the dynamic value (e.g. 'mean/2')
+    :param prop: str for the property (e.g. 'intensity_mean')
+    :param props_table: regionprops_table dictionary
+    :param verbose: bool to print out the information
+    :return: float threshold value
+    """
+    # Make sure that infinity values are returned as floats
+    if "inf" in value:
+        return float("inf")
+    elif "-inf" in value:
+        return float("-inf")
+    # check for specific strings...
+    t = None
+    if "bimodal" in value:
+        # Calculate the bimodal threshold value
+        t = estimate_threshold(prop, props_table)
+        t = __resolve_value__("bimodal", value, t)
+    elif "mean" in value:
+        # Calculate the mean threshold value
+        t = get_prop_mean(prop, props_table)
+        t = __resolve_value__("mean", value, t)
+    elif "median" in value:
+        # Calculate the median threshold value
+        t = get_prop_median(prop, props_table)
+        t = __resolve_value__("median", value, t)
+    else:
+        raise NotImplementedError(
+            f"Your value <{value}> is not implemented. "
+            f"Only: 'bimodal', 'mean' or 'median'."
+        )
+    if verbose:
+        print(
+            f"Calculated threshold value <{value}> for property {prop} = {t}"
+        )
+    return t
+
+
+def __resolve_value__(method: str, value: str, base_threshold: float) -> float:
+    """
+    Helper function to calculate dynamic thresholds.
+
+    This function will adjust a calculated "bimodal", "mean" or "median" threshold
+    based on a dynamic value (string, e.g. "bimodal/2"). I.e. to multiply or divide,
+    the base-threshold via user defined choice.
+
+    :param method: str method used
+    :param value: str value to be calculated
+    :param base_threshold: float threshold (not yet finally calculated)
+    :return: float threshold value
+    """
+    if "/" in value:
+        v = value.split("/")
+        v = float(v[1])
+        base_threshold = base_threshold / v
+    elif "*" in value:
+        v = value.split("*")
+        v = float(v[1])
+        base_threshold = base_threshold * v
+    else:
+        if value != method:
+            raise ValueError(
+                f"Your value <{value}> is not valid. Please use "
+                f"e.g. '{method}', '{method}/2', '{method}*2.5'."
+            )
+    return base_threshold
 
 
 def filter_labels_by_property(

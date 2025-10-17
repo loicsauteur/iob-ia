@@ -37,7 +37,8 @@ def save_image_channel(
                 f"Voxel size requires a tuple of length 3 (for X, Y, Z voxel sizes). "
                 f"Got = {voxel_size}."
             )
-        path = path.replace(".tif", ".ome.tif")
+        if ".ome.tif" not in path:
+            path = path.replace(".tif", ".ome.tif")
         OmeTiffWriter.save(
             img,
             path,
