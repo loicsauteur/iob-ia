@@ -109,7 +109,11 @@ def measure_label_props(
         print(f'Measured properties of {len(props_table["label"])} labels.')
         for k, v in props_table.items():
             if k != "label":
-                print(f"{k}: mean = {np.mean(v)}; median = {np.median(v)}")
+                print(
+                    f"{k}: mean = {round(float(np.mean(v)), 3)}; "
+                    f"median = {round(float(np.median(v)), 3)}; "
+                    f"bimodal = {round(estimate_threshold(k, props_table), 3)}"
+                )
 
     return props_table
 
@@ -333,4 +337,10 @@ def filter_labels_by_property(
     img_filtered = map_array(
         input_arr=img_label, input_vals=input_vals, output_vals=output_vals
     )
+    if verbose:
+        print(
+            "Final filtered image has",
+            count_unique_labels(img_filtered),
+            "labels.",
+        )
     return img_filtered, props_table

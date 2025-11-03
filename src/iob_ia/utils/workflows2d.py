@@ -267,7 +267,7 @@ class Iob2DImageCheck:
             )
             mask_props.append(props)
             print(">>Filtering...")
-            # modify the filter for mean intensity
+            # modify the filter for mean intensity -> [mean intensity / 3, None]
             filters[i]["intensity_mean"] = [
                 calc_intensity_threshold(
                     props,
@@ -420,7 +420,9 @@ class Iob2DImageCheck:
                 )
                 save_image_channel(self.imgs[i], out_path)
         if self.result_table is not None:
-            out_path = gen_out_path(self.path, name=f"{wf}_results-table")
+            out_path = gen_out_path(
+                self.path, name=f"{wf}_single-custom_results-table"
+            )
             out_path = out_path.replace(".tif", ".csv")
             pd.DataFrame.to_csv(self.result_table, out_path)
             print(f"Saved results table to {out_path}.")

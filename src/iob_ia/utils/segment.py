@@ -249,7 +249,7 @@ def segment_2d_sub_projections(
     mask_sub_stacks = []
     substacks = []
     n_label_max = 0
-    model = models.CellposeModel(gpu=use_gpu, model_type=model_path)
+    model = models.CellposeModel(gpu=use_gpu, pretrained_model=model_path)
     for z in range(0, img.shape[0], n_slices):
         # Sequential max projections (info: if z>Z-dim, takes Z-dim)
         substack = np.max(img[z : z + n_slices, :, :], axis=0)
@@ -257,7 +257,7 @@ def segment_2d_sub_projections(
         # Segment
         result = model.eval(
             substack,
-            diameter=15,
+            # diameter=15, # Resizing is deprecated
             cellprob_threshold=cellprob_threshold,
             do_3D=False,
         )
@@ -309,37 +309,25 @@ def segment_3d_cellpose(
     print(">>> GPU activated:", use_gpu)
 
     # Set up the model
-    if model_path == "cpsam":
-        model = models.CellposeModel(gpu=use_gpu, model_type=model_path)
-        # Run 3D cellpose
-        result = model.eval(
-            img,
-            do_3D=True,
-            z_axis=0,
-            anisotropy=anisotropy,
-            # newer version calls it flow3D_smooth not dP_smooth
-            flow3D_smooth=flow3D_smooth,
-            cellprob_threshold=cellprob_threshold,
-            # z_axis=0,
-        )
-    else:
-        model = models.CellposeModel(gpu=True, pretrained_model=model_path)
-        # TODO: Not sure how important the anisotropy is here -->
-        #  probably because z-stage movement not precise...(cels in z are 40um)
-        #  Also need to try with smoothing the flows:
-        #  -> dP_smooth/flow3D_smooth (sigma for gaussian filter) -->
-        #  Doesnt seem too have a big impact
-        #  cellprob_threshold maybe decrease to -3
-        #  (range -6 to + 6, default 0, smaller=more cells)
-        # Run 3D cellpose
-        result = model.eval(
-            img,
-            do_3D=True,
-            z_axis=0,
-            anisotropy=anisotropy,
-            cellprob_threshold=cellprob_threshold,
-            flow3D_smooth=flow3D_smooth,
-        )
+    model = models.CellposeModel(gpu=use_gpu, pretrained_model=model_path)
+    # Run 3D cellpose
+    # TODO: Not sure how important the anisotropy is here -->
+    #  probably because z-stage movement not precise...(cels in z are 40um)
+    #  Also need to try with smoothing the flows:
+    #  -> dP_smooth/flow3D_smooth (sigma for gaussian filter) -->
+    #  Doesnt seem too have a big impact
+    #  cellprob_threshold maybe decrease to -3
+    #  (range -6 to + 6, default 0, smaller=more cells)
+    result = model.eval(
+        img,
+        do_3D=True,
+        z_axis=0,
+        anisotropy=anisotropy,
+        # newer version calls it flow3D_smooth not dP_smooth
+        flow3D_smooth=flow3D_smooth,
+        cellprob_threshold=cellprob_threshold,
+        # z_axis=0,
+    )
     # eval returns multiple objects (number of objects may change)
     return result[0]  # (first item is the mask)
 
