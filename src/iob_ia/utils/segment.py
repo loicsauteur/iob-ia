@@ -214,6 +214,7 @@ def segment_2d_sub_projections(
     substack_size: float = 40.0,
     model_path: str = "cpsam",
     cellprob_threshold: float = 0.0,
+    flow_threshold: float = 0.4,
 ) -> (np.ndarray, np.ndarray, tuple):
     """
     Uses cellpose to segment 2D max projections of substack parts.
@@ -223,6 +224,7 @@ def segment_2d_sub_projections(
     :param substack_size: substack to be max projected in microns. Default = 40.0
     :param model_path: path to cellpose model. Default = 'cpsam'
     :param cellprob_threshold: cellpose cellprob threshold. Default = 0.0
+    :param flow_threshold: cellpose flow threshold. Default = 0.4
     :return: 3D mask image
     :return: modified image (stack of substacks)
     :return: new voxel size of the output mask
@@ -259,6 +261,7 @@ def segment_2d_sub_projections(
             substack,
             # diameter=15, # Resizing is deprecated
             cellprob_threshold=cellprob_threshold,
+            flow_threshold=flow_threshold,
             do_3D=False,
         )
         # increment label ids for subsequent stacks
