@@ -3,6 +3,7 @@ import warnings
 from typing import Optional
 
 import pandas as pd
+from tqdm import tqdm
 
 from iob_ia.utils.io_utils import read_image
 
@@ -24,10 +25,14 @@ def check_images(
     img = None
     all_channel_names = []
     all_voxel_sizes = []
-    for p in image_paths:
-        img = read_image(p)
+    for i in tqdm(range(len(image_paths))):
+        img = read_image(image_paths[i])
         all_voxel_sizes.append(img.physical_pixel_sizes)
         all_channel_names.append(img.channel_names)
+    # for p in image_paths:
+    #    img = read_image(p)
+    #    all_voxel_sizes.append(img.physical_pixel_sizes)
+    #    all_channel_names.append(img.channel_names)
     del img
 
     # Check booleans

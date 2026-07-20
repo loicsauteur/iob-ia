@@ -263,12 +263,15 @@ def segment_2d_sub_projections(
             cellprob_threshold=cellprob_threshold,
             flow_threshold=flow_threshold,
             do_3D=False,
-        )
+        )[0]
         # increment label ids for subsequent stacks
-        mask = np.where(result[0] != 0, result[0] + n_label_max, result[0])
+        mask = np.where(result != 0, result + n_label_max, result)
         n_label_max = mask.max()
         mask_sub_stacks.append(mask)
         substacks.append(substack)
+    # Try free memory
+    del result
+    del model
     # Convert the substack projection to single stack and return it + new voxel size
     return (
         np.asarray(mask_sub_stacks),
